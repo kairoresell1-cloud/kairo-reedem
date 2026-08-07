@@ -182,37 +182,93 @@
   fileDrop.addEventListener('click', () => fileInput.click());
   fileDrop.addEventListener('dragover', e => { e.preventDefault(); fileDrop.classList.add('drag'); });
   fileDrop.addEventListener('dragleave', () => fileDrop.classList.remove('drag'));
-  fileDrop.addEventListener('drop', e => {
+  fileDrop.addEventListener('drop', async e => {
     e.preventDefault(); fileDrop.classList.remove('drag');
-    loadFromFileList(e.dataTransfer.files);
+    // Use DataTransferItemList + webkitGetAsEntry to support folders with subfolders
+    const items = e.dataTransfer.items;
+    if (items && items.length > 0 && items[0].webkitGetAsEntry) {
+      const entries = [];
+      for (const item of items) {
+        const entry = item.webkitGetAsEntry();
+        if (entry) entries.push(entry);
+      }
+      const files = await collectFilesFromEntries(entries);
+      processFiles(files);
+    } else {
+      // Fallback per browser che non supportano webkitGetAsEntry
+      loadFromFileList(e.dataTransfer.files);
+    }
   });
   fileInput.addEventListener('change', () => loadFromFileList(fileInput.files));
   document.getElementById('folderInput').addEventListener('change', function() { loadFromFileList(this.files); });
 
+  // Ricorre dentro directory entries e raccoglie tutti i File
+  async function collectFilesFromEntries(entries) {
+    const SKIP_EXT = new Set(['exe','zip','rar','png','jpg','jpeg','gif','mp4','mp3','pdf','db','dat']);
+    const result = [];
+
+    async function walk(entry, path) {
+      if (entry.isFile) {
+        await new Promise(res => entry.file(f => {
+          const ext = f.name.includes('.') ? f.name.split('.').pop().toLowerCase() : '';
+          if (!SKIP_EXT.has(ext)) {
+            // Attacca il percorso relativo al file per display
+            Object.defineProperty(f, '_relativePath', { value: path || f.name, writable: false });
+            result.push(f);
+          }
+          res();
+        }, res));
+      } else if (entry.isDirectory) {
+        await new Promise((res, rej) => {
+          const reader = entry.createReader();
+          function readAll(acc) {
+            reader.readEntries(batch => {
+              if (!batch.length) {
+                Promise.all(acc.map(e => walk(e, (path ? path + '/' : '') + e.name))).then(res);
+              } else {
+                readAll(acc.concat(Array.from(batch)));
+              }
+            }, rej);
+          }
+          readAll([]);
+        });
+      }
+    }
+
+    await Promise.all(entries.map(e => walk(e, e.name)));
+    return result;
+  }
+
   function loadFromFileList(files) {
+    processFiles(Array.from(files));
+  }
+
+  function processFiles(files) {
     loadedFiles = [];
+    const SKIP_EXT = new Set(['exe','zip','rar','png','jpg','jpeg','gif','mp4','mp3','pdf','db','dat']);
     const promises = [];
     for (const f of files) {
-      const ext = f.name.split('.').pop().toLowerCase();
-      if (['exe','zip','rar','png','jpg','jpeg','gif','mp4','mp3','pdf'].includes(ext)) continue;
-      // Accept all text-like files including no extension or .txt with special chars in name
+      const ext = f.name.includes('.') ? f.name.split('.').pop().toLowerCase() : '';
+      if (SKIP_EXT.has(ext)) continue;
       promises.push(new Promise(res => {
         const r = new FileReader();
-        r.onload = e => {
-          const content = e.target.result;
-          // Only keep if it contains Netflix cookie data
+        r.onload = ev => {
+          const content = ev.target.result;
           if (content.includes('NetflixId') || content.includes('netflix.com')) {
-            loadedFiles.push({ name: f.webkitRelativePath || f.name, content });
+            const displayName = f._relativePath || f.webkitRelativePath || f.name;
+            loadedFiles.push({ name: displayName, content });
           }
           res();
         };
         r.onerror = () => res();
-        r.readAsText(f);
+        r.readAsText(f, 'utf-8');
       }));
     }
     Promise.all(promises).then(() => {
       fileList.innerHTML = loadedFiles.map(f => `<span>📄 ${f.name}</span>`).join('');
-      if (loadedFiles.length === 0) fileList.innerHTML = '<span style="color:#555">Nessun file .txt/.json trovato</span>';
+      if (loadedFiles.length === 0) {
+        fileList.innerHTML = '<span style="color:#e50914">⚠️ Nessun file con cookie Netflix trovato. Controlla che i file contengano "NetflixId".</span>';
+      }
     });
   }
 
