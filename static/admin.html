@@ -38,6 +38,7 @@
     <div class="tabs">
       <div class="tab active" data-target="keys">🔑 Keys</div>
       <div class="tab" data-target="cookies">🍪 Cookies</div>
+      <div class="tab hidden" id="nav-tab-admins" data-target="admins">👑 Admins</div>
     </div>
 
     <div id="tab-keys" class="tab-content active">
@@ -87,6 +88,27 @@
         <button class="btn btn-primary mt-1" onclick="uploadCookies()">Upload & Validate</button>
         
         <div id="cookieResult" class="hidden mt-1 p-1" style="border:1px solid var(--card-border); border-radius:6px; padding:1rem;"></div>
+      </div>
+    </div>
+
+    <div id="tab-admins" class="tab-content">
+      <div class="card">
+        <h3>Admin Management</h3>
+        <p class="mb-2" style="color:var(--text-muted); font-size:0.9rem;">Grant or revoke admin privileges for registered users. Only you (the Owner) can see this.</p>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody">
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </main>

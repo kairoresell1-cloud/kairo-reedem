@@ -265,6 +265,15 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated
 
+def owner_required(f):
+    @wraps(f)
+    @login_required
+    def decorated(*args, **kwargs):
+        if not current_user.is_owner:
+            return jsonify({"error": "Accesso negato. Solo l'owner può eseguire questa azione."}), 403
+        return f(*args, **kwargs)
+    return decorated
+
 
 # ── Page routes ────────────────────────────────────────────────────────────────
 
@@ -409,6 +418,32 @@ def api_admin_stats():
         "total_cookies": total_cookies,
         "valid_cookies": valid_cookies,
     })
+
+
+@app.route("/api/admin/users")
+@owner_required
+def api_admin_users():
+    users = User.query.order_by(User.created_at.desc()).all()
+    return jsonify({"users": [u.to_dict() for u in users]})
+
+
+@app.route("/api/admin/set-admin", methods=["POST"])
+@owner_required
+def api_admin_set_admin():
+    data = request.get_json(silent=True) or {}
+    user_id = data.get("user_id")
+    is_admin = bool(data.get("is_admin"))
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "Utente non trovato."}), 404
+        
+    if user.is_owner:
+        return jsonify({"error": "Non puoi modificare i permessi dell'owner."}), 400
+
+    user.is_admin = is_admin
+    db.session.commit()
+    return jsonify({"success": True})
 
 
 @app.route("/api/admin/generate-keys", methods=["POST"])

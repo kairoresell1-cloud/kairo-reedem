@@ -4,6 +4,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   loadStats();
   loadKeysTable();
+  
+  if (user.is_owner) {
+    document.getElementById('nav-tab-admins').classList.remove('hidden');
+    loadUsersTable();
+  }
 
   // Tabs setup
   document.querySelectorAll('.tab').forEach(tab => {
@@ -213,4 +218,59 @@ window.uploadCookies = async function() {
   `;
   document.getElementById('cookieInput').value = '';
   loadStats();
+}
+
+async function loadUsersTable() {
+  try {
+    const res = await fetch('/api/admin/users');
+    if (!res.ok) return;
+    const data = await res.json();
+    
+    const tbody = document.getElementById('usersTableBody');
+    tbody.innerHTML = data.users.map(u => {
+      let roleBadge = u.is_owner 
+        ? `<span class="badge" style="background:var(--accent-gold); color:black;">Owner</span>`
+        : u.is_admin 
+          ? `<span class="badge badge-success">Admin</span>`
+          : `<span class="badge" style="background:rgba(255,255,255,0.1);">User</span>`;
+          
+      let actions = '';
+      if (!u.is_owner) {
+        if (u.is_admin) {
+          actions = `<button class="btn btn-danger" style="padding:0.3rem 0.6rem; font-size:0.8rem;" onclick="toggleAdmin(${u.id}, false)">Revoke Admin</button>`;
+        } else {
+          actions = `<button class="btn btn-primary" style="padding:0.3rem 0.6rem; font-size:0.8rem;" onclick="toggleAdmin(${u.id}, true)">Make Admin</button>`;
+        }
+      }
+      
+      return `
+        <tr>
+          <td>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <img src="${u.avatar_url || 'https://ui-avatars.com/api/?name=' + u.name + '&background=191919&color=fff'}" style="width:30px; height:30px; border-radius:50%;">
+              <span>${u.name}</span>
+            </div>
+          </td>
+          <td>${u.email}</td>
+          <td>${roleBadge}</td>
+          <td>${actions}</td>
+        </tr>
+      `;
+    }).join('');
+  } catch (e) {
+    console.error('Failed to load users', e);
+  }
+}
+
+window.toggleAdmin = async function(userId, makeAdmin) {
+  const action = makeAdmin ? 'grant admin rights to' : 'revoke admin rights from';
+  if(!confirm(`Are you sure you want to ${action} this user?`)) return;
+  
+  const res = await api('POST', '/api/admin/set-admin', { user_id: userId, is_admin: makeAdmin });
+  if (res.success) {
+    showToast('Admin permissions updated', 'success');
+    loadUsersTable();
+  } else {
+    showToast(res.error || 'Failed to update permissions', 'error');
+  }
 }

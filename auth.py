@@ -45,7 +45,7 @@ def callback():
         for e in os.getenv("ADMIN_EMAILS", "").split(",")
         if e.strip()
     ]
-    is_admin = email in admin_emails
+    is_owner = email in admin_emails
 
     # Upsert user
     user = User.query.filter_by(google_id=google_id).first()
@@ -55,13 +55,15 @@ def callback():
             email=email,
             name=name,
             avatar_url=avatar_url,
-            is_admin=is_admin,
+            is_admin=is_owner, # Owners are admins by default
         )
         db.session.add(user)
     else:
         user.name       = name
         user.avatar_url = avatar_url
-        user.is_admin   = is_admin  # refresh on every login
+        if is_owner:
+            user.is_admin = True # Owner always gets admin rights
+
 
     db.session.commit()
     login_user(user, remember=True)

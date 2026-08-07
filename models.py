@@ -6,6 +6,7 @@ from flask_login import UserMixin
 from datetime import datetime
 import secrets
 import string
+import os
 
 db = SQLAlchemy()
 
@@ -23,6 +24,11 @@ class User(UserMixin, db.Model):
 
     keys = db.relationship("Key", backref="user", foreign_keys="Key.redeemed_by_id", lazy=True)
 
+    @property
+    def is_owner(self):
+        owner_emails = [e.strip() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()]
+        return self.email in owner_emails
+
     def to_dict(self):
         return {
             "id":         self.id,
@@ -30,6 +36,7 @@ class User(UserMixin, db.Model):
             "name":       self.name,
             "avatar_url": self.avatar_url,
             "is_admin":   self.is_admin,
+            "is_owner":   self.is_owner,
         }
 
 
