@@ -214,12 +214,20 @@
   <div class="status" id="status"></div>
 
   <div class="result-box" id="resultBox">
-    <label style="margin-top:16px">LOGIN LINK</label>
+    <label style="margin-top:16px">LOGIN LINK — PC / Browser</label>
     <div class="result-url" id="resultUrl"></div>
     <div class="btn-row">
-      <button class="btn-copy" id="btnCopy">Copia Link</button>
+      <button class="btn-copy" id="btnCopy">Copia Link PC</button>
       <button class="btn-open" id="btnOpen">Apri nel Browser</button>
     </div>
+
+    <label style="margin-top:14px">LOGIN LINK — Mobile (App Netflix)</label>
+    <div class="result-url" id="resultUrlMobile"></div>
+    <div class="btn-row">
+      <button class="btn-copy" id="btnCopyMobile">Copia Link Mobile</button>
+      <button class="btn-open" id="btnOpenMobile">Apri App Netflix</button>
+    </div>
+
     <div class="hint" style="margin-top:8px">⚠️ Link usa-e-getta — usalo subito dopo aver cliccato Genera</div>
   </div>
 </div>
@@ -232,10 +240,14 @@
   const status      = document.getElementById('status');
   const resultBox   = document.getElementById('resultBox');
   const resultUrl   = document.getElementById('resultUrl');
-  const btnCopy     = document.getElementById('btnCopy');
-  const btnOpen     = document.getElementById('btnOpen');
+  const btnCopy       = document.getElementById('btnCopy');
+  const btnOpen       = document.getElementById('btnOpen');
+  const btnCopyMobile = document.getElementById('btnCopyMobile');
+  const btnOpenMobile = document.getElementById('btnOpenMobile');
+  const resultUrlMobile = document.getElementById('resultUrlMobile');
 
   let currentUrl = '';
+  let currentMobileUrl = '';
 
   // File drop
   fileDrop.addEventListener('click', () => fileInput.click());
@@ -278,7 +290,9 @@
         setStatus('error', '❌ ' + data.error);
       } else {
         currentUrl = data.url;
+        currentMobileUrl = data.mobile_url;
         resultUrl.textContent = data.url;
+        resultUrlMobile.textContent = data.mobile_url;
         resultBox.classList.add('show');
         setStatus('success', '✅ Link generato con successo!');
       }
@@ -292,10 +306,18 @@
   btnCopy.addEventListener('click', () => {
     navigator.clipboard.writeText(currentUrl);
     btnCopy.textContent = 'Copiato!';
-    setTimeout(() => btnCopy.textContent = 'Copia Link', 2000);
+    setTimeout(() => btnCopy.textContent = 'Copia Link PC', 2000);
   });
 
   btnOpen.addEventListener('click', () => window.open(currentUrl, '_blank'));
+
+  btnCopyMobile.addEventListener('click', () => {
+    navigator.clipboard.writeText(currentMobileUrl);
+    btnCopyMobile.textContent = 'Copiato!';
+    setTimeout(() => btnCopyMobile.textContent = 'Copia Link Mobile', 2000);
+  });
+
+  btnOpenMobile.addEventListener('click', () => window.open(currentMobileUrl, '_blank'));
 
   function setStatus(type, html) {
     status.className = 'status ' + type;
