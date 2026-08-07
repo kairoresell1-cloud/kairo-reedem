@@ -52,19 +52,18 @@ async function loadKeys() {
           Redeemed: <span style="color:white; font-weight:600;">${new Date(k.redeemed_at).toLocaleDateString()}</span>
         </p>
         
-        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px; margin-bottom:1rem; transform: translateZ(50px);">
-          <button class="btn btn-primary" style="padding:0.6rem 0.2rem; font-size:0.8rem;" onclick="generateLink(${k.id}, 'pc', this)">
-            🖥️ PC / TV
+        <div style="display:flex; gap:10px; margin-bottom:1rem; transform: translateZ(50px);">
+          <button class="btn btn-primary" style="flex:1; padding:0.6rem; font-size:0.9rem;" onclick="generateLink(${k.id}, 'pc', this)">
+            🖥️ PC Link
           </button>
-          <button class="btn btn-secondary" style="padding:0.6rem 0.2rem; font-size:0.8rem;" onclick="generateLink(${k.id}, 'ios', this)">
-            🍏 Apple iOS
-          </button>
-          <button class="btn btn-secondary" style="padding:0.6rem 0.2rem; font-size:0.8rem;" onclick="generateLink(${k.id}, 'android', this)">
-            🤖 Android
+          <button class="btn btn-secondary" style="flex:1; padding:0.6rem; font-size:0.9rem;" onclick="generateLink(${k.id}, 'mobile', this)">
+            📱 Mobile
           </button>
         </div>
         
-        <div id="link-container-${k.id}" class="hidden" style="background:rgba(0,0,0,0.6); padding:1rem; border-radius:8px; border:1px solid rgba(229,9,20,0.3); font-size:0.85rem; position:relative; transform: translateZ(40px);">
+        <div id="link-container-${k.id}" class="hidden" style="background:rgba(0,0,0,0.6); padding:1rem; border-radius:8px; border:1px solid rgba(229,9,20,0.2); word-break:break-all; font-size:0.85rem; position:relative; transform: translateZ(40px);">
+          <span id="link-text-${k.id}" style="color:var(--text-color); display:block; padding-right:60px;"></span>
+          <button onclick="copyLink(${k.id})" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:var(--accent-red); border:none; color:white; border-radius:6px; cursor:pointer; padding:6px 14px; font-weight:600; font-size:0.8rem;">COPY</button>
         </div>
       </div>
     </div>
@@ -101,11 +100,8 @@ window.generateLink = async function(id, type, btnElem) {
   const originalHtml = btnElem ? btnElem.innerHTML : '';
   if (btnElem) {
     btnElem.disabled = true;
-    btnElem.innerHTML = '⏳ Attendi...';
+    btnElem.innerHTML = '⏳ Generando...';
   }
-  
-  const linkContainer = document.getElementById(`link-container-${id}`);
-  linkContainer.classList.add('hidden');
   
   try {
     const res = await api('POST', '/api/generate-link', { key_id: id });
@@ -114,49 +110,19 @@ window.generateLink = async function(id, type, btnElem) {
       return;
     }
     
-    let url = res.url;
-    let label = '🖥️ PC / SmartTV';
-    if (type === 'ios') {
-      url = res.ios_url || res.url;
-      label = '🍏 Apple iOS (Safari)';
-    } else if (type === 'android') {
-      url = res.android_url || res.url;
-      label = '🤖 Android (Chrome)';
-    }
-    
+    const url = type === 'mobile' ? res.mobile_url : res.url;
     if (!url) {
       showToast('Errore generazione link', 'error');
       return;
     }
     
-    const gatewayUrl = `/open/${id}?device=${type}`;
-    
-    linkContainer.innerHTML = `
-      <div style="font-size:0.75rem; color:var(--accent-gold); margin-bottom:6px; font-weight:600; display:flex; justify-content:space-between; align-items:center;">
-        <span>✨ LINK FRESCO (${label})</span>
-        <span style="color:var(--text-muted); font-size:0.7rem;">Live Token</span>
-      </div>
-      <div style="background:rgba(0,0,0,0.5); padding:8px; border-radius:6px; font-family:monospace; font-size:0.8rem; word-break:break-all; margin-bottom:10px; border:1px solid rgba(255,255,255,0.05); color:#fff;">
-        ${url}
-      </div>
-      <div style="display:flex; gap:8px;">
-        <button class="btn btn-primary" style="flex:1; padding:0.5rem; font-size:0.8rem;" onclick="copyToClipboard('${url}')">
-          📋 Copia Link
-        </button>
-        <a href="${gatewayUrl}" target="_blank" class="btn btn-secondary" style="flex:1; padding:0.5rem; font-size:0.8rem; text-align:center; text-decoration:none; display:flex; align-items:center; justify-content:center;">
-          🚀 Apri Diretto
-        </a>
-      </div>
-      ${type === 'android' ? `
-        <div style="margin-top:10px; font-size:0.78rem; color:var(--text-muted); line-height:1.4; background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border-left:3px solid var(--accent-gold);">
-          💡 <b>Info Android:</b> Premi <b>"🚀 Apri Diretto"</b> per entrare automaticamente. Se il tuo telefono ha impostazioni che forzano il Play Store, tocca <b>"Copia Link"</b> e incollalo nella barra in alto di <b>Chrome</b> (o in Incognito).
-        </div>
-      ` : ''}
-    `;
+    const linkContainer = document.getElementById(`link-container-${id}`);
+    const linkText = document.getElementById(`link-text-${id}`);
+    linkText.textContent = url;
+    linkText.dataset.url = url;
     linkContainer.classList.remove('hidden');
-    showToast('Nuovo token generato con successo!', 'success');
+    showToast('Nuovo link generato!', 'success');
   } catch (err) {
-    console.error(err);
     showToast('Errore di connessione', 'error');
   } finally {
     if (btnElem) {
@@ -164,5 +130,10 @@ window.generateLink = async function(id, type, btnElem) {
       btnElem.innerHTML = originalHtml;
     }
   }
+}
+
+window.copyLink = function(id) {
+  const url = document.getElementById(`link-text-${id}`).dataset.url;
+  copyToClipboard(url);
 }
 
