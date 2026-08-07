@@ -227,6 +227,41 @@ def generate_nftoken(cookies):
     return "https://netflix.com/?nftoken=" + token
 
 
+_VERIFY_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/124.0.0.0 Safari/537.36",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+def verify_nftoken(token_url: str) -> bool:
+    """
+    Verifica che il token funzioni davvero aprendo il link.
+    Se Netflix ci manda su /login → cookie scaduti → False.
+    Se arriviamo su /browse o / con sessione attiva → True.
+    """
+    try:
+        r = requests.get(
+            token_url,
+            headers=_VERIFY_HEADERS,
+            timeout=20,
+            verify=False,
+            allow_redirects=True,
+        )
+        final = r.url.lower()
+        # Cookie scaduti → Netflix rimanda al login
+        if "/login" in final or "/signup" in final:
+            return False
+        # Logged-in indicators nell'URL o nell'HTML
+        if "/browse" in final or "/home" in final:
+            return True
+        # Fallback: cerca un marker HTML di sessione attiva
+        return "data-uia=\"nav-account-menu\"" in r.text or "authURL" in r.text
+    except Exception as exc:
+        log.warning("Verifica token fallita: %s", exc)
+        return False
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -262,6 +297,12 @@ def api_generate():
         try:
             url = generate_nftoken(cookies)
             token_part = url.split("?nftoken=")[1]
+
+            # Verifica che il token funzioni — scarta i cookie scaduti
+            if not verify_nftoken(url):
+                log.info("Token generato ma login fallito (cookie scaduti?), scartato.")
+                continue
+
             mobile_url = "https://www.netflix.com/unsupported?nftoken=" + token_part
             accounts.append({"url": url, "mobile_url": mobile_url})
         except Exception as e:
