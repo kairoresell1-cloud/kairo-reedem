@@ -404,17 +404,20 @@ def api_generate_link():
     # URL-encode the token to avoid '+' becoming spaces in query strings
     encoded_token = urllib.parse.quote(token, safe="")
     
-    pc_url     = "https://www.netflix.com/youraccount?nftoken=" + encoded_token
-    mobile_url = "https://www.netflix.com/browse?nftoken=" + encoded_token
-    mobile_alt = "https://www.netflix.com/unsupported?nftoken=" + encoded_token
+    pc_url      = "https://www.netflix.com/youraccount?nftoken=" + encoded_token
+    ios_url     = "https://www.netflix.com/browse?nftoken=" + encoded_token
+    android_url = "https://www.netflix.com/login?nftoken=" + encoded_token
+    mobile_alt  = "https://www.netflix.com/unsupported?nftoken=" + encoded_token
     
     return jsonify({
         "url": pc_url,
-        "mobile_url": mobile_url,
+        "ios_url": ios_url,
+        "android_url": android_url,
         "mobile_alt_url": mobile_alt,
         "token": token,
         "timestamp": datetime.utcnow().isoformat()
     })
+
 
 
 

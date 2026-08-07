@@ -52,12 +52,15 @@ async function loadKeys() {
           Redeemed: <span style="color:white; font-weight:600;">${new Date(k.redeemed_at).toLocaleDateString()}</span>
         </p>
         
-        <div style="display:flex; gap:10px; margin-bottom:1rem; transform: translateZ(50px);">
-          <button class="btn btn-primary" style="flex:1; padding:0.6rem; font-size:0.9rem;" onclick="generateLink(${k.id}, 'pc', this)">
-            🖥️ PC Link
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px; margin-bottom:1rem; transform: translateZ(50px);">
+          <button class="btn btn-primary" style="padding:0.6rem 0.2rem; font-size:0.8rem;" onclick="generateLink(${k.id}, 'pc', this)">
+            🖥️ PC / TV
           </button>
-          <button class="btn btn-secondary" style="flex:1; padding:0.6rem; font-size:0.9rem;" onclick="generateLink(${k.id}, 'mobile', this)">
-            📱 Mobile
+          <button class="btn btn-secondary" style="padding:0.6rem 0.2rem; font-size:0.8rem;" onclick="generateLink(${k.id}, 'ios', this)">
+            🍏 Apple iOS
+          </button>
+          <button class="btn btn-secondary" style="padding:0.6rem 0.2rem; font-size:0.8rem;" onclick="generateLink(${k.id}, 'android', this)">
+            🤖 Android
           </button>
         </div>
         
@@ -98,7 +101,7 @@ window.generateLink = async function(id, type, btnElem) {
   const originalHtml = btnElem ? btnElem.innerHTML : '';
   if (btnElem) {
     btnElem.disabled = true;
-    btnElem.innerHTML = '⏳ Generando...';
+    btnElem.innerHTML = '⏳ Attendi...';
   }
   
   const linkContainer = document.getElementById(`link-container-${id}`);
@@ -111,7 +114,16 @@ window.generateLink = async function(id, type, btnElem) {
       return;
     }
     
-    const url = type === 'mobile' ? res.mobile_url : res.url;
+    let url = res.url;
+    let label = '🖥️ PC / SmartTV';
+    if (type === 'ios') {
+      url = res.ios_url || res.url;
+      label = '🍏 Apple iOS (Safari)';
+    } else if (type === 'android') {
+      url = res.android_url || res.url;
+      label = '🤖 Android (Chrome)';
+    }
+    
     if (!url) {
       showToast('Errore generazione link', 'error');
       return;
@@ -119,7 +131,7 @@ window.generateLink = async function(id, type, btnElem) {
     
     linkContainer.innerHTML = `
       <div style="font-size:0.75rem; color:var(--accent-gold); margin-bottom:6px; font-weight:600; display:flex; justify-content:space-between; align-items:center;">
-        <span>✨ LINK FRESCO (${type === 'mobile' ? '📱 MOBILE' : '🖥️ PC'})</span>
+        <span>✨ LINK FRESCO (${label})</span>
         <span style="color:var(--text-muted); font-size:0.7rem;">Live Token</span>
       </div>
       <div style="background:rgba(0,0,0,0.5); padding:8px; border-radius:6px; font-family:monospace; font-size:0.8rem; word-break:break-all; margin-bottom:10px; border:1px solid rgba(255,255,255,0.05); color:#fff;">
@@ -133,10 +145,15 @@ window.generateLink = async function(id, type, btnElem) {
           🚀 Apri Subito
         </a>
       </div>
-      ${type === 'mobile' && res.mobile_alt_url ? `
-        <div style="margin-top:8px; text-align:center;">
+      ${type === 'android' ? `
+        <div style="margin-top:8px; font-size:0.75rem; color:var(--text-muted); line-height:1.3; background:rgba(255,255,255,0.03); padding:6px; border-radius:4px; border-left:2px solid var(--accent-gold);">
+          💡 <b>Info Android:</b> Se aprendo il link si apre l'app Netflix senza effettuare il login, clicca <b>"Copia"</b> e incolla il link in una scheda <b>Incognito di Chrome</b>.
+        </div>
+      ` : ''}
+      ${(type === 'ios' || type === 'android') && res.mobile_alt_url ? `
+        <div style="margin-top:6px; text-align:center;">
           <a href="${res.mobile_alt_url}" target="_blank" style="font-size:0.75rem; color:var(--text-muted); text-decoration:underline;">
-            Problemi ad aprire? Clicca qui (Metodo Alternativo)
+            Problemi? Clicca per il Metodo Alternativo Bypass
           </a>
         </div>
       ` : ''}
