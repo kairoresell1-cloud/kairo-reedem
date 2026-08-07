@@ -1,0 +1,132 @@
+"""
+models.py — Kairo Redeem database models
+"""
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin
+from datetime import datetime
+import secrets
+import string
+
+db = SQLAlchemy()
+
+
+class User(UserMixin, db.Model):
+    __tablename__ = "users"
+
+    id          = db.Column(db.Integer, primary_key=True)
+    google_id   = db.Column(db.String(100), unique=True, nullable=False)
+    email       = db.Column(db.String(200), unique=True, nullable=False)
+    name        = db.Column(db.String(200))
+    avatar_url  = db.Column(db.String(500))
+    is_admin    = db.Column(db.Boolean, default=False)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+    keys = db.relationship("Key", backref="user", foreign_keys="Key.redeemed_by_id", lazy=True)
+
+    def to_dict(self):
+        return {
+            "id":         self.id,
+            "email":      self.email,
+            "name":       self.name,
+            "avatar_url": self.avatar_url,
+            "is_admin":   self.is_admin,
+        }
+
+
+class CookiePool(db.Model):
+    __tablename__ = "cookies_pool"
+
+    id                = db.Column(db.Integer, primary_key=True)
+    netflix_id        = db.Column(db.String(1000), unique=True, nullable=False)
+    secure_netflix_id = db.Column(db.String(1000))
+    nfvdid            = db.Column(db.String(1000))
+    optanon_consent   = db.Column(db.Text)
+    is_valid          = db.Column(db.Boolean, default=True)
+    added_at          = db.Column(db.DateTime, default=datetime.utcnow)
+    last_checked_at   = db.Column(db.DateTime)
+
+    keys = db.relationship("Key", backref="cookie", lazy=True)
+
+    def to_cookie_dict(self):
+        """Return as dict compatible with generate_nftoken()."""
+        d = {"NetflixId": self.netflix_id}
+        if self.secure_netflix_id:
+            d["SecureNetflixId"] = self.secure_netflix_id
+        if self.nfvdid:
+            d["nfvdid"] = self.nfvdid
+        if self.optanon_consent:
+            d["OptanonConsent"] = self.optanon_consent
+        return d
+
+
+class Key(db.Model):
+    __tablename__ = "keys"
+
+    id              = db.Column(db.Integer, primary_key=True)
+    key_code        = db.Column(db.String(50), unique=True, nullable=False)
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
+    redeemed_at     = db.Column(db.DateTime)
+    redeemed_by_id  = db.Column(db.Integer, db.ForeignKey("users.id"))
+    cookie_id       = db.Column(db.Integer, db.ForeignKey("cookies_pool.id"))
+    is_revoked      = db.Column(db.Boolean, default=False)
+
+    @property
+    def is_available(self):
+        return not self.is_revoked and self.redeemed_by_id is None
+
+    @property
+    def is_redeemed(self):
+        return self.redeemed_by_id is not None and not self.is_revoked
+
+    def to_dict(self, include_user=False):
+        d = {
+            "id":           self.id,
+            "key_code":     self.key_code,
+            "created_at":   self.created_at.isoformat() if self.created_at else None,
+            "redeemed_at":  self.redeemed_at.isoformat() if self.redeemed_at else None,
+            "is_revoked":   self.is_revoked,
+            "is_available": self.is_available,
+            "cookie_valid": self.cookie.is_valid if self.cookie else False,
+        }
+        if include_user and self.user:
+            d["user_email"] = self.user.email
+            d["user_name"]  = self.user.name
+        return d
+
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+def generate_key_code() -> str:
+    """Generate a key in format KAIRO-XXXX-XXXX-XXXX (no ambiguous chars)."""
+    chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I
+    parts = ["".join(secrets.choice(chars) for _ in range(4)) for _ in range(3)]
+    return f"KAIRO-{'-'.join(parts)}"
+
+
+def get_valid_cookie_for_key(key: Key) -> CookiePool | None:
+    """
+    Return a valid cookie for this key.
+    If the current cookie is invalid/missing, rotate to a fresh one from the pool.
+    """
+    if key.cookie and key.cookie.is_valid:
+        return key.cookie
+
+    # Current cookie is dead — pick an unused valid one from the pool
+    used_ids = db.session.query(Key.cookie_id).filter(
+        Key.cookie_id.isnot(None),
+        Key.is_revoked == False,
+    ).subquery()
+
+    fresh = CookiePool.query.filter(
+        CookiePool.is_valid == True,
+        ~CookiePool.id.in_(used_ids),
+    ).first()
+
+    if fresh:
+        key.cookie_id = fresh.id
+        if key.cookie:
+            key.cookie.is_valid = False  # mark old one as dead
+        db.session.commit()
+        return fresh
+
+    return None

@@ -1,57 +1,89 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Netflix Token Generator</title>
-  <link rel="stylesheet" href="style.css">
+  <title>KAIRO | Premium Access</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<div class="card">
-  <div class="logo">
-    <span class="logo-n">N</span>
-    <div>
-      <div class="logo-text">Token Generator</div>
-      <div class="logo-sub">multi-account · auto-scan</div>
+  <nav class="navbar">
+    <div class="logo">KAIRO</div>
+    <div class="nav-links" id="navAuth">
+      <a href="/auth/login" class="btn btn-secondary" id="loginBtn">Sign in</a>
     </div>
-  </div>
+  </nav>
 
-  <!-- Tabs -->
-  <div class="tabs">
-    <button class="tab active" onclick="switchTab('paste')">📋 Incolla</button>
-    <button class="tab"        onclick="switchTab('files')">📁 File / Cartella</button>
-  </div>
+  <main class="container">
+    <div class="hero">
+      <h1>Premium Access</h1>
+      <p>Enter your exclusive Kairo key to instantly unlock premium streaming features. Fast, secure, and seamless.</p>
+    </div>
 
-  <!-- Paste tab -->
-  <div class="tab-panel active" id="tab-paste">
-    <label>Incolla cookie (uno o più blocchi)</label>
-    <textarea id="cookieInput"
-      placeholder=".netflix.com&#9;TRUE&#9;/&#9;TRUE&#9;...&#9;NetflixId&#9;xxx&#10;oppure: NetflixId=xxx; SecureNetflixId=xxx">
-    </textarea>
-  </div>
-
-  <!-- Files tab -->
-  <div class="tab-panel" id="tab-files">
-    <div class="file-drop" id="fileDrop">
-      <!-- hidden inputs -->
-      <input type="file"   id="fileInput"   multiple          style="display:none">
-      <input type="file"   id="folderInput" multiple webkitdirectory style="display:none">
-      <!-- picker buttons -->
-      <div class="btn-zone">
-        <button id="btnPickFile">📄 Scegli File</button>
-        <button id="btnPickFolder">📁 Scegli Cartella</button>
+    <div style="max-width: 500px; margin: 0 auto;">
+      <div class="card">
+        <h2 class="mb-2 text-center">Redeem Your Key</h2>
+        <form id="redeemForm">
+          <div class="form-group">
+            <label for="keyCode">Access Key</label>
+            <input type="text" id="keyCode" placeholder="KAIRO-XXXX-XXXX-XXXX" required autocomplete="off">
+          </div>
+          <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+            Redeem Now
+          </button>
+        </form>
       </div>
-      <div class="hint-text">oppure trascina file/cartella ovunque sulla pagina</div>
     </div>
-    <div class="file-list" id="fileList"></div>
-  </div>
+  </main>
+  
+  <div id="toast-container"></div>
 
-  <button class="btn-generate" id="btnGenerate">Genera Link</button>
-  <div class="status"   id="status"></div>
-  <div class="progress" id="progress"></div>
-  <div class="results"  id="results"></div>
-</div>
+  <script src="/static/kairo.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = await checkAuth(false);
+      const navAuth = document.getElementById('navAuth');
+      
+      if (user) {
+        navAuth.innerHTML = `
+          <a href="/static/dashboard.html" style="margin-right: 15px;">Dashboard</a>
+          ${user.is_admin ? '<a href="/static/admin.html" class="gold" style="margin-right: 15px;">Admin</a>' : ''}
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <img src="${user.avatar_url || 'https://ui-avatars.com/api/?name=' + user.name + '&background=191919&color=fff'}" style="width:35px; height:35px; border-radius:50%;">
+            <a href="/auth/logout" class="btn btn-secondary" style="padding: 0.4rem 1rem;">Logout</a>
+          </div>
+        `;
+      }
 
-<script src="app.js"></script>
+      document.getElementById('redeemForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const keyInput = document.getElementById('keyCode').value.trim();
+        
+        if (!user) {
+          showToast('Please sign in to redeem a key', 'error');
+          setTimeout(() => { window.location.href = '/auth/login'; }, 1500);
+          return;
+        }
+        
+        if(!keyInput) return;
+        
+        const btn = e.target.querySelector('button');
+        btn.disabled = true;
+        btn.innerHTML = 'Redeeming...';
+        
+        const res = await api('POST', '/api/redeem', { key: keyInput });
+        if (res.success) {
+          showToast('Key redeemed successfully!', 'success');
+          setTimeout(() => {
+            window.location.href = '/static/dashboard.html';
+          }, 1500);
+        } else {
+          showToast(res.error || 'Failed to redeem key', 'error');
+          btn.disabled = false;
+          btn.innerHTML = 'Redeem Now';
+        }
+      });
+    });
+  </script>
 </body>
 </html>
