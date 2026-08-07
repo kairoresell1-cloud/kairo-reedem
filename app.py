@@ -102,39 +102,49 @@ def generate_nftoken(cookies):
 
         js = """
         async () => {
-            const body = {
-                operationName: "createAutoLoginToken",
-                variables: {},
-                query: "mutation createAutoLoginToken { createAutoLoginToken(scope: BROWSE) }"
+            // First: introspect to find valid TokenScope enum values
+            const introspect = {
+                query: `{ __type(name: "TokenScope") { enumValues { name } } }`
             };
+            let scopeValues = [];
             try {
-                const r = await fetch("https://www.netflix.com/nq/website/memberapi/v1/graphql", {
+                const ri = await fetch("https://www.netflix.com/nq/website/memberapi/v1/graphql", {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "Accept": "application/json" },
-                    body: JSON.stringify(body),
+                    body: JSON.stringify(introspect),
                     credentials: "include"
                 });
-                const d = await r.json();
-                if (d?.data?.createAutoLoginToken) return { token: d.data.createAutoLoginToken };
-                if (d?.errors) return { error: JSON.stringify(d.errors) };
+                const di = await ri.json();
+                const vals = di?.data?.__type?.enumValues;
+                if (vals) scopeValues = vals.map(v => v.name);
             } catch(e) {}
-            try {
-                const r2 = await fetch("https://web.prod.cloud.netflix.com/graphql", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Accept": "application/json",
-                        "x-netflix.clienttype": "akira"
-                    },
-                    body: JSON.stringify(body),
-                    credentials: "include"
-                });
-                const d2 = await r2.json();
-                if (d2?.data?.createAutoLoginToken) return { token: d2.data.createAutoLoginToken };
-                return { error: JSON.stringify(d2).substring(0, 300) };
-            } catch(e2) {
-                return { error: e2.toString() };
+
+            if (scopeValues.length === 0) {
+                return { error: "Introspection fallita — impossibile trovare TokenScope values" };
             }
+
+            // Try each scope value until one works
+            for (const scope of scopeValues) {
+                const body = {
+                    operationName: "createAutoLoginToken",
+                    variables: {},
+                    query: `mutation createAutoLoginToken { createAutoLoginToken(scope: ${scope}) }`
+                };
+                try {
+                    const r = await fetch("https://www.netflix.com/nq/website/memberapi/v1/graphql", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                        body: JSON.stringify(body),
+                        credentials: "include"
+                    });
+                    const d = await r.json();
+                    if (d?.data?.createAutoLoginToken) {
+                        return { token: d.data.createAutoLoginToken, scope: scope };
+                    }
+                } catch(e) {}
+            }
+
+            return { error: "Nessun scope valido ha funzionato. Valori provati: " + scopeValues.join(", ") };
         }
         """
 
