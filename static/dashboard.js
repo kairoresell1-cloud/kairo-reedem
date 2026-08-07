@@ -36,7 +36,7 @@ async function loadKeys() {
   keysGrid.innerHTML = keys.map(k => `
     <div class="ticket-card" id="key-card-${k.id}">
       <div class="ticket-header">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; justify-content:space-between; align-items:center; transform: translateZ(40px);">
           <h3 style="letter-spacing:1.5px; font-weight:700; color:var(--text-color); cursor:pointer;" onclick="toggleKey(${k.id}, '${k.key_code}')" id="key-display-${k.id}">
             ${maskKey(k.key_code)}
           </h3>
@@ -48,11 +48,11 @@ async function loadKeys() {
       </div>
       
       <div class="ticket-body">
-        <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1.5rem; text-transform:uppercase; letter-spacing:1px;">
+        <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1.5rem; text-transform:uppercase; letter-spacing:1px; transform: translateZ(30px);">
           Redeemed: <span style="color:white; font-weight:600;">${new Date(k.redeemed_at).toLocaleDateString()}</span>
         </p>
         
-        <div style="display:flex; gap:10px; margin-bottom:1rem;">
+        <div style="display:flex; gap:10px; margin-bottom:1rem; transform: translateZ(50px);">
           <button class="btn btn-primary" style="flex:1; padding:0.6rem; font-size:0.9rem;" onclick="generateLink(${k.id}, 'pc')">
             🖥️ PC Link
           </button>
@@ -61,13 +61,24 @@ async function loadKeys() {
           </button>
         </div>
         
-        <div id="link-container-${k.id}" class="hidden" style="background:rgba(0,0,0,0.6); padding:1rem; border-radius:8px; border:1px solid rgba(229,9,20,0.2); word-break:break-all; font-size:0.85rem; position:relative;">
+        <div id="link-container-${k.id}" class="hidden" style="background:rgba(0,0,0,0.6); padding:1rem; border-radius:8px; border:1px solid rgba(229,9,20,0.2); word-break:break-all; font-size:0.85rem; position:relative; transform: translateZ(40px);">
           <span id="link-text-${k.id}" style="color:var(--text-color); display:block; padding-right:50px;"></span>
           <button onclick="copyLink(${k.id})" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:var(--accent-red); border:none; color:white; border-radius:6px; cursor:pointer; padding:6px 12px; font-weight:600; font-size:0.8rem;">COPY</button>
         </div>
       </div>
     </div>
   `).join('');
+  
+  // Inizializza l'effetto 3D Glass
+  if (window.VanillaTilt) {
+    VanillaTilt.init(document.querySelectorAll(".ticket-card"), {
+      max: 15,
+      speed: 400,
+      glare: true,
+      "max-glare": 0.25,
+      perspective: 1000,
+    });
+  }
 }
 
 function maskKey(key) {
