@@ -65,10 +65,6 @@ async function loadKeys() {
           <span id="link-text-${k.id}" style="color:var(--text-color); display:block; padding-right:50px;"></span>
           <button onclick="copyLink(${k.id})" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:var(--accent-red); border:none; color:white; border-radius:6px; cursor:pointer; padding:6px 12px; font-weight:600; font-size:0.8rem;">COPY</button>
         </div>
-        
-        <div class="barcode">
-          ${k.key_code.split('-')[0]} ${k.key_code.split('-')[3]}
-        </div>
       </div>
     </div>
   `).join('');
