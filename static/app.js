@@ -46,14 +46,10 @@ document.getElementById('btnPickFolder').addEventListener('click', e => {
   e.stopPropagation();
   folderInput.click();
 });
-fileInput.addEventListener('change',   () => handleFileList(Array.from(fileInput.files)));
-folderInput.addEventListener('change', () => handleFileList(Array.from(folderInput.files)));
+fileInput.addEventListener('change',   () => processRawFiles(Array.from(fileInput.files)));
+folderInput.addEventListener('change', () => processRawFiles(Array.from(folderInput.files)));
 
-// ── Drag & Drop ── listener a livello DOCUMENTO ───────────────
-//  Questo è il fix definitivo: ascoltare a livello document
-//  bypassa qualsiasi problema di child elements che bloccano gli eventi.
-//  dragover su document DEVE fare preventDefault altrimenti il drop non scatta MAI.
-
+// ── Drag & Drop — listener a livello DOCUMENTO ────────────────
 let dragDepth = 0;
 
 document.addEventListener('dragenter', e => {
@@ -63,8 +59,6 @@ document.addEventListener('dragenter', e => {
 });
 
 document.addEventListener('dragleave', e => {
-  // dragleave scatta anche quando si passa su figli — usiamo relatedTarget
-  // per capire se stiamo davvero uscendo dalla finestra
   if (e.relatedTarget === null || e.relatedTarget.nodeName === 'HTML') {
     dragDepth = 0;
     fileDrop.classList.remove('drag');
@@ -75,7 +69,7 @@ document.addEventListener('dragleave', e => {
 });
 
 document.addEventListener('dragover', e => {
-  e.preventDefault(); // FONDAMENTALE — senza questo il drop non parte mai
+  e.preventDefault(); // OBBLIGATORIO — senza questo il drop non parte mai
   e.dataTransfer.dropEffect = 'copy';
 });
 
@@ -84,8 +78,7 @@ document.addEventListener('drop', e => {
   dragDepth = 0;
   fileDrop.classList.remove('drag');
 
-  // IMPORTANTE: raccogliamo entry in modo SINCRONO prima di qualsiasi await
-  // DataTransfer è valido SOLO durante la fase sincrona dell'evento
+  // Raccolgo entry IN MODO SINCRONO — DataTransfer è valido solo qui
   const entries = [];
   if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
     for (const item of e.dataTransfer.items) {
@@ -96,16 +89,43 @@ document.addEventListener('drop', e => {
     }
   }
 
-  if (entries.length > 0) {
-    // Browser supporta FileSystem API — cammina directory ricorsivamente
-    walkEntries(entries).then(files => handleFileList(files));
+  if (entries.length === 0) {
+    // Fallback FileList puro (browser vecchi)
+    processRawFiles(Array.from(e.dataTransfer.files));
+    return;
+  }
+
+  // Controlla se sono TUTTI file (niente cartelle) → via diretta, più leggera
+  const allFiles = entries.every(e => e.isFile);
+  if (allFiles) {
+    // Nessuna ricorsione — leggi direttamente i File objects
+    collectFlatFiles(entries).then(files => processRawFiles(files));
   } else {
-    // Fallback: FileList piatta (niente sottocartelle ma almeno funziona)
-    handleFileList(Array.from(e.dataTransfer.files));
+    // C'è almeno una cartella → walk ricorsivo
+    fileList.innerHTML = '<span style="color:#555">🔍 Scansione cartella in corso...</span>';
+    walkEntries(entries).then(files => processRawFiles(files));
   }
 });
 
-// ── Ricorsione directory ──────────────────────────────────────
+// ── File flat da entry (per drag di singoli file, veloce) ─────
+function collectFlatFiles(entries) {
+  return Promise.all(
+    entries
+      .filter(e => e.isFile)
+      .map(entry => new Promise(res => {
+        entry.file(f => {
+          try {
+            Object.defineProperty(f, '_path', {
+              value: entry.name, writable: false, configurable: true
+            });
+          } catch (_) {}
+          res(f);
+        }, () => res(null));
+      }))
+  ).then(files => files.filter(Boolean));
+}
+
+// ── Walk ricorsivo per cartelle ───────────────────────────────
 function walkEntries(entries) {
   const collected = [];
 
@@ -114,23 +134,19 @@ function walkEntries(entries) {
       return new Promise(res => {
         entry.file(file => {
           const ext = file.name.includes('.')
-            ? file.name.split('.').pop().toLowerCase()
-            : '';
+            ? file.name.split('.').pop().toLowerCase() : '';
           if (!SKIP_EXT.has(ext)) {
-            // Aggiungiamo il path relativo per il display
             try {
               Object.defineProperty(file, '_path', {
-                value: relativePath || file.name,
-                writable: false, configurable: true
+                value: relativePath || file.name, writable: false, configurable: true
               });
             } catch (_) {}
             collected.push(file);
           }
           res();
-        }, () => res()); // ignora file non leggibili
+        }, () => res());
       });
     }
-
     if (entry.isDirectory) {
       return readAllEntries(entry.createReader()).then(children =>
         Promise.all(children.map(child =>
@@ -138,11 +154,9 @@ function walkEntries(entries) {
         ))
       );
     }
-
     return Promise.resolve();
   }
 
-  // readEntries restituisce max 100 entry alla volta — loop finché vuoto
   function readAllEntries(reader) {
     return new Promise((res, rej) => {
       const all = [];
@@ -160,10 +174,12 @@ function walkEntries(entries) {
   return Promise.all(entries.map(e => walkEntry(e, e.name))).then(() => collected);
 }
 
-// ── Leggi files e filtra per contenuto Netflix ────────────────
-function handleFileList(files) {
+// ── Leggi File[] e filtra per contenuto Netflix ───────────────
+function processRawFiles(files) {
   loadedFiles = [];
+
   const filtered = files.filter(f => {
+    if (!f) return false;
     const ext = f.name.includes('.') ? f.name.split('.').pop().toLowerCase() : '';
     return !SKIP_EXT.has(ext);
   });
@@ -173,34 +189,47 @@ function handleFileList(files) {
     return;
   }
 
-  fileList.innerHTML = `<span style="color:#555">Lettura ${filtered.length} file...</span>`;
+  fileList.innerHTML = `<span style="color:#555">📂 Lettura ${filtered.length} file in corso...</span>`;
 
-  const promises = filtered.map(f => readFileWithFallback(f).then(content => {
-    if (!content) return;
-    if (content.includes('NetflixId') || content.includes('netflix.com')) {
-      const name = (f._path) || f.webkitRelativePath || f.name;
-      loadedFiles.push({ name, content });
-    }
-  }));
+  let done = 0;
+  const promises = filtered.map(f =>
+    readFileText(f).then(content => {
+      done++;
+      // aggiorna contatore ogni 10 file per non stressare il DOM
+      if (done % 10 === 0 || done === filtered.length) {
+        fileList.innerHTML = `<span style="color:#555">📂 Letti ${done}/${filtered.length}...</span>`;
+      }
+      if (!content) return;
+      if (content.includes('NetflixId') || content.includes('netflix.com')) {
+        const name = f._path || f.webkitRelativePath || f.name;
+        loadedFiles.push({ name, content });
+      }
+    })
+  );
 
   Promise.all(promises).then(() => {
     if (loadedFiles.length > 0) {
-      fileList.innerHTML = loadedFiles.map(f => `<span>📄 ${f.name}</span>`).join('');
+      fileList.innerHTML = [
+        `<span style="color:#1db954;display:block;margin-bottom:6px">` +
+        `✅ ${loadedFiles.length} file con cookie Netflix trovati</span>`,
+        ...loadedFiles.map(f => `<span>📄 ${f.name}</span>`)
+      ].join('');
     } else {
-      fileList.innerHTML = '<span style="color:#e50914">⚠️ Nessun file con cookie Netflix trovato (NetflixId non presente).</span>';
+      fileList.innerHTML =
+        '<span style="color:#e50914">⚠️ Nessun file contiene "NetflixId". ' +
+        'Controlla che siano i cookie giusti.</span>';
     }
   });
 }
 
-// Prova UTF-8 prima, poi Latin-1 come fallback (alcuni dump hanno encoding strano)
-function readFileWithFallback(file) {
+// Prova UTF-8, fallback Latin-1 per file con encoding strano
+function readFileText(file) {
   return new Promise(res => {
     const r = new FileReader();
-    r.onload = ev => res(ev.target.result);
+    r.onload  = ev => res(ev.target.result);
     r.onerror = () => {
-      // prova latin-1
       const r2 = new FileReader();
-      r2.onload = ev => res(ev.target.result);
+      r2.onload  = ev => res(ev.target.result);
       r2.onerror = () => res(null);
       r2.readAsText(file, 'latin-1');
     };
@@ -221,8 +250,8 @@ btnGenerate.addEventListener('click', async () => {
     sources = loadedFiles;
   }
 
-  btnGenerate.disabled = true;
-  resultsEl.innerHTML  = '';
+  btnGenerate.disabled  = true;
+  resultsEl.innerHTML   = '';
   progressEl.textContent = '';
   setStatus('loading', '<span class="spinner"></span>Scansione in corso...');
 
@@ -242,16 +271,11 @@ btnGenerate.addEventListener('click', async () => {
       const data = await res.json();
 
       if (data.accounts && data.accounts.length > 0) {
-        for (const acc of data.accounts) {
-          ok++;
-          resultsEl.innerHTML += renderAccount(acc, src.name);
-        }
+        for (const acc of data.accounts) { ok++; resultsEl.innerHTML += renderAccount(acc, src.name); }
       } else {
         fail++;
       }
-    } catch {
-      fail++;
-    }
+    } catch { fail++; }
   }
 
   progressEl.textContent = '';
@@ -263,7 +287,7 @@ btnGenerate.addEventListener('click', async () => {
   btnGenerate.disabled = false;
 });
 
-// ── Render account card ───────────────────────────────────────
+// ── Render helpers ────────────────────────────────────────────
 function renderAccount(acc, filename) {
   const id = 'acc_' + Math.random().toString(36).slice(2);
   return `
