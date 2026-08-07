@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Netflix Token Generator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <span class="logo-n">N</span>
+    <div>
+      <div class="logo-text">Token Generator</div>
+      <div class="logo-sub">multi-account · auto-scan</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('paste')">📋 Incolla</button>
+    <button class="tab"        onclick="switchTab('files')">📁 File / Cartella</button>
+  </div>
+
+  <!-- Paste tab -->
+  <div class="tab-panel active" id="tab-paste">
+    <label>Incolla cookie (uno o più blocchi)</label>
+    <textarea id="cookieInput"
+      placeholder=".netflix.com&#9;TRUE&#9;/&#9;TRUE&#9;...&#9;NetflixId&#9;xxx&#10;oppure: NetflixId=xxx; SecureNetflixId=xxx">
+    </textarea>
+  </div>
+
+  <!-- Files tab -->
+  <div class="tab-panel" id="tab-files">
+    <div class="file-drop" id="fileDrop">
+      <!-- hidden inputs -->
+      <input type="file"   id="fileInput"   multiple          style="display:none">
+      <input type="file"   id="folderInput" multiple webkitdirectory style="display:none">
+      <!-- picker buttons -->
+      <div class="btn-zone">
+        <button id="btnPickFile">📄 Scegli File</button>
+        <button id="btnPickFolder">📁 Scegli Cartella</button>
+      </div>
+      <div class="hint-text">oppure trascina file/cartella ovunque sulla pagina</div>
+    </div>
+    <div class="file-list" id="fileList"></div>
+  </div>
+
+  <button class="btn-generate" id="btnGenerate">Genera Link</button>
+  <div class="status"   id="status"></div>
+  <div class="progress" id="progress"></div>
+  <div class="results"  id="results"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
