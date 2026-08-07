@@ -33,8 +33,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.addEventListener('drop', (e) => {
     e.preventDefault();
     dropZone.classList.remove('dragover');
-    if (e.dataTransfer.files.length) {
-      handleCookieFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleDroppedFiles(e.dataTransfer.files);
     }
   });
 });
@@ -126,13 +126,32 @@ window.revokeKey = async function(id) {
   }
 }
 
-function handleCookieFile(file) {
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    document.getElementById('cookieInput').value = e.target.result;
-    showToast('File loaded, ready to upload', 'success');
-  };
-  reader.readAsText(file);
+async function handleDroppedFiles(files) {
+  const fileArray = Array.from(files).filter(f => f.name.endsWith('.txt') || f.type.includes('text') || !f.type);
+  if (fileArray.length === 0) {
+    showToast('No text files found', 'error');
+    return;
+  }
+  
+  showToast(`Reading ${fileArray.length} files...`, 'success');
+  
+  let combinedContent = document.getElementById('cookieInput').value || '';
+  if (combinedContent) combinedContent += '\n\n';
+  
+  const promises = fileArray.map(file => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = () => resolve('');
+      reader.readAsText(file);
+    });
+  });
+  
+  const contents = await Promise.all(promises);
+  combinedContent += contents.filter(c => c.trim()).join('\n\n');
+  
+  document.getElementById('cookieInput').value = combinedContent;
+  showToast(`Loaded ${fileArray.length} files, ready to upload`, 'success');
 }
 
 window.uploadCookies = async function() {
