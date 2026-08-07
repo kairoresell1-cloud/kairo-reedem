@@ -34,31 +34,41 @@ async function loadKeys() {
   keysGrid.classList.remove('hidden');
   
   keysGrid.innerHTML = keys.map(k => `
-    <div class="card" id="key-card-${k.id}">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-        <h3 style="letter-spacing:1px; cursor:pointer;" onclick="toggleKey(${k.id}, '${k.key_code}')" id="key-display-${k.id}">
-          ${maskKey(k.key_code)}
-        </h3>
-        <div class="badge ${k.cookie_valid ? 'badge-success' : 'badge-error'}">
-          <div class="dot ${k.cookie_valid ? 'green' : 'red'}"></div>
-          ${k.cookie_valid ? 'Valid' : 'Checking'}
+    <div class="ticket-card" id="key-card-${k.id}">
+      <div class="ticket-header">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h3 style="letter-spacing:1.5px; font-weight:700; color:var(--text-color); cursor:pointer;" onclick="toggleKey(${k.id}, '${k.key_code}')" id="key-display-${k.id}">
+            ${maskKey(k.key_code)}
+          </h3>
+          <div class="badge ${k.cookie_valid ? 'badge-success' : 'badge-error'}">
+            <div class="dot ${k.cookie_valid ? 'green' : 'red'}"></div>
+            ${k.cookie_valid ? 'Live' : 'Checking'}
+          </div>
         </div>
       </div>
-      <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1.5rem;">
-        Redeemed: ${new Date(k.redeemed_at).toLocaleDateString()}
-      </p>
       
-      <div style="display:flex; gap:10px; margin-bottom:1rem;">
-        <button class="btn btn-primary" style="flex:1; padding:0.5rem;" onclick="generateLink(${k.id}, 'pc')">
-          🖥️ PC Link
-        </button>
-        <button class="btn btn-secondary" style="flex:1; padding:0.5rem;" onclick="generateLink(${k.id}, 'mobile')">
-          📱 Mobile
-        </button>
-      </div>
-      <div id="link-container-${k.id}" class="hidden" style="background:rgba(0,0,0,0.4); padding:0.8rem; border-radius:6px; border:1px solid var(--card-border); word-break:break-all; font-size:0.85rem; margin-top:10px; position:relative;">
-        <span id="link-text-${k.id}"></span>
-        <button onclick="copyLink(${k.id})" style="position:absolute; right:5px; top:5px; background:var(--accent-red); border:none; color:white; border-radius:4px; cursor:pointer; padding:2px 8px; font-size:0.8rem;">Copy</button>
+      <div class="ticket-body">
+        <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1.5rem; text-transform:uppercase; letter-spacing:1px;">
+          Redeemed: <span style="color:white; font-weight:600;">${new Date(k.redeemed_at).toLocaleDateString()}</span>
+        </p>
+        
+        <div style="display:flex; gap:10px; margin-bottom:1rem;">
+          <button class="btn btn-primary" style="flex:1; padding:0.6rem; font-size:0.9rem;" onclick="generateLink(${k.id}, 'pc')">
+            🖥️ PC Link
+          </button>
+          <button class="btn btn-secondary" style="flex:1; padding:0.6rem; font-size:0.9rem;" onclick="generateLink(${k.id}, 'mobile')">
+            📱 Mobile
+          </button>
+        </div>
+        
+        <div id="link-container-${k.id}" class="hidden" style="background:rgba(0,0,0,0.6); padding:1rem; border-radius:8px; border:1px solid rgba(229,9,20,0.2); word-break:break-all; font-size:0.85rem; position:relative;">
+          <span id="link-text-${k.id}" style="color:var(--text-color); display:block; padding-right:50px;"></span>
+          <button onclick="copyLink(${k.id})" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:var(--accent-red); border:none; color:white; border-radius:6px; cursor:pointer; padding:6px 12px; font-weight:600; font-size:0.8rem;">COPY</button>
+        </div>
+        
+        <div class="barcode">
+          ${k.key_code.split('-')[0]} ${k.key_code.split('-')[3]}
+        </div>
       </div>
     </div>
   `).join('');
