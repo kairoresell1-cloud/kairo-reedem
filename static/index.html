@@ -193,13 +193,20 @@
     loadedFiles = [];
     const promises = [];
     for (const f of files) {
-      // Skip obvious binaries by size or known extensions — accept everything else
       const ext = f.name.split('.').pop().toLowerCase();
       if (['exe','zip','rar','png','jpg','jpeg','gif','mp4','mp3','pdf'].includes(ext)) continue;
+      // Accept all text-like files including no extension or .txt with special chars in name
       promises.push(new Promise(res => {
         const r = new FileReader();
-        r.onload = e => { loadedFiles.push({ name: f.name, content: e.target.result }); res(); };
-        r.onerror = () => res(); // skip unreadable
+        r.onload = e => {
+          const content = e.target.result;
+          // Only keep if it contains Netflix cookie data
+          if (content.includes('NetflixId') || content.includes('netflix.com')) {
+            loadedFiles.push({ name: f.webkitRelativePath || f.name, content });
+          }
+          res();
+        };
+        r.onerror = () => res();
         r.readAsText(f);
       }));
     }
