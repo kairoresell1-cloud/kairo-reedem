@@ -160,6 +160,53 @@
       .redeem-card { margin: 1.5rem 1rem 0; padding: 1.8rem; }
       .features { gap: 1.5rem; }
     }
+    
+    /* Redeem Animation */
+    #unlockAnimation {
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(0,0,0,0.9);
+      display: flex; justify-content: center; align-items: center;
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      opacity: 0; pointer-events: none; transition: opacity 0.5s ease;
+    }
+    #unlockAnimation.active { opacity: 1; pointer-events: auto; }
+    .glass-ticket-3d {
+      width: 320px; height: 180px;
+      background: linear-gradient(135deg, rgba(229,9,20,0.3), rgba(255,255,255,0.05));
+      border: 1px solid rgba(255,255,255,0.2);
+      border-top: 2px solid rgba(255,255,255,0.5);
+      border-left: 2px solid rgba(255,255,255,0.3);
+      border-radius: 20px;
+      box-shadow: 0 0 50px rgba(229,9,20,0.4), inset 0 0 30px rgba(255,255,255,0.1);
+      position: relative; overflow: hidden;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      transform: perspective(1000px) rotateX(60deg) scale(0.5);
+      opacity: 0;
+    }
+    #unlockAnimation.active .glass-ticket-3d {
+      animation: ticketPop 2.5s forwards cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes ticketPop {
+      0% { transform: perspective(1000px) rotateX(60deg) scale(0.5); opacity: 0; }
+      30% { transform: perspective(1000px) rotateX(0deg) scale(1.1); opacity: 1; }
+      50% { transform: perspective(1000px) rotateX(0deg) scale(1); box-shadow: 0 0 100px rgba(229,9,20,0.9), inset 0 0 50px rgba(255,255,255,0.3); }
+      100% { transform: perspective(1000px) rotateX(0deg) scale(1); box-shadow: 0 0 40px rgba(229,9,20,0.5), inset 0 0 30px rgba(255,255,255,0.1); opacity: 1; }
+    }
+    .scanline {
+      position: absolute; top: -100%; left: 0; width: 100%; height: 3px;
+      background: #fff; box-shadow: 0 0 15px #fff, 0 0 30px #FFD700;
+      opacity: 0;
+    }
+    #unlockAnimation.active .scanline {
+      animation: scan 2s ease-in-out infinite;
+      animation-delay: 0.5s;
+    }
+    @keyframes scan {
+      0% { top: -10%; opacity: 1; }
+      100% { top: 110%; opacity: 1; }
+    }
+    .ticket-content h2 { font-size: 1.8rem; font-weight: 800; color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.5); margin-bottom: 0.2rem; }
+    .ticket-content p { font-size: 0.9rem; color: var(--accent-gold); font-weight: 500; text-transform: uppercase; letter-spacing: 2px; }
   </style>
 </head>
 <body>
@@ -237,6 +284,17 @@
     © 2026 Kairo · Premium Access
   </footer>
 
+  <!-- Redeem Animation Overlay -->
+  <div id="unlockAnimation">
+    <div class="glass-ticket-3d">
+      <div class="scanline"></div>
+      <div class="ticket-content text-center">
+        <h2>ACCESS GRANTED</h2>
+        <p>Premium Unlocked</p>
+      </div>
+    </div>
+  </div>
+
   <div id="toast-container"></div>
 
   <script src="/static/kairo.js"></script>
@@ -274,8 +332,13 @@
         
         const res = await api('POST', '/api/redeem', { key: keyInput });
         if (res.success) {
-          showToast('Key redeemed! Redirecting...', 'success');
-          setTimeout(() => { window.location.href = '/dashboard'; }, 1500);
+          // Play epic unlock animation
+          const animLayer = document.getElementById('unlockAnimation');
+          animLayer.classList.add('active');
+          
+          setTimeout(() => { 
+            window.location.href = '/dashboard'; 
+          }, 2500);
         } else {
           showToast(res.error || 'Failed to redeem key', 'error');
           btn.disabled = false;
