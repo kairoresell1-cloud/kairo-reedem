@@ -232,16 +232,28 @@ _VERIFY_HEADERS = {
                   "AppleWebKit/537.36 (KHTML, like Gecko) "
                   "Chrome/124.0.0.0 Safari/537.36",
     "Accept-Language": "en-US,en;q=0.9",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 }
+
+# Pagine valide dopo login riuscito
+_VALID_PATHS   = ("/browse", "/home", "/selectprofile", "/profiles", "/kids")
+# Pagine che indicano login fallito
+_INVALID_PATHS = ("/login", "/signup", "/register")
 
 def verify_nftoken(token_url: str) -> bool:
     """
-    Verifica che il token funzioni davvero aprendo il link.
-    Se Netflix ci manda su /login → cookie scaduti → False.
-    Se arriviamo su /browse o / con sessione attiva → True.
+    Verifica che il token effettivamente logga l'utente.
+
+    Strategia (in ordine di affidabilità):
+    1. Se la risposta contiene un cookie NetflixId fresco → login OK
+       (Netflix lo setta solo quando il token è valido)
+    2. Se l'URL finale è su una pagina di login/signup → morto
+    3. Se l'URL finale è su browse/selectProfile/ecc → valido
+    4. Se siamo ancora sull'URL nftoken (non rediretto) → morto
     """
     try:
-        r = requests.get(
+        session = requests.Session()
+        r = session.get(
             token_url,
             headers=_VERIFY_HEADERS,
             timeout=20,
@@ -249,14 +261,29 @@ def verify_nftoken(token_url: str) -> bool:
             allow_redirects=True,
         )
         final = r.url.lower()
-        # Cookie scaduti → Netflix rimanda al login
-        if "/login" in final or "/signup" in final:
-            return False
-        # Logged-in indicators nell'URL o nell'HTML
-        if "/browse" in final or "/home" in final:
+
+        # ── Controllo 1: cookie di risposta (più affidabile) ──
+        # Netflix setta NetflixId SOLO quando il token è legittimo
+        all_cookies = {**session.cookies.get_dict(), **r.cookies.get_dict()}
+        if "netflixid" in {k.lower() for k in all_cookies}:
             return True
-        # Fallback: cerca un marker HTML di sessione attiva
-        return "data-uia=\"nav-account-menu\"" in r.text or "authURL" in r.text
+
+        # ── Controllo 2: URL finale → pagina di login ─────────
+        if any(p in final for p in _INVALID_PATHS):
+            return False
+
+        # ── Controllo 3: URL finale → pagina loggata ──────────
+        if any(p in final for p in _VALID_PATHS):
+            return True
+
+        # ── Controllo 4: siamo rimasti sull'URL nftoken ───────
+        if "nftoken=" in final:
+            return False
+
+        # Non siamo su login, non siamo su browse → assume morto
+        log.warning("verify_nftoken: URL finale ambiguo: %s", final)
+        return False
+
     except Exception as exc:
         log.warning("Verifica token fallita: %s", exc)
         return False
