@@ -9,6 +9,7 @@ from functools import wraps
 import requests
 from flask import Flask, request, jsonify, send_from_directory, redirect, session
 from flask_login import LoginManager, login_required, current_user
+from werkzeug.middleware.proxy_fix import ProxyFix
 from urllib3.exceptions import InsecureRequestWarning
 
 from models import db, User, CookiePool, Key, generate_key_code, get_valid_cookie_for_key
@@ -21,6 +22,9 @@ requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 # ── App init ───────────────────────────────────────────────────────────────────
 app = Flask(__name__, static_folder="static")
+# ProxyFix: Railway usa un reverse proxy HTTPS
+# senza questo Flask genera http:// nei redirect OAuth → Google lo rifiuta
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Fix Railway postgres:// → postgresql://
 _db_url = os.getenv("DATABASE_URL", "sqlite:///kairo.db")
