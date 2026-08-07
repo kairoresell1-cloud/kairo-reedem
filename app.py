@@ -245,7 +245,16 @@ def generate_nftoken(cookie_dict: dict) -> str:
         
     headers["Cookie"] = "; ".join(cookies_list)
     import uuid
-    headers["x-netflix.request.toplevel.uuid"] = str(uuid.uuid4()).upper()
+    top_uuid = str(uuid.uuid4()).upper()
+    action_id = str(uuid.uuid4()).upper()
+    headers["x-netflix.request.toplevel.uuid"] = top_uuid
+    headers["x-netflix.context.top-level-uuid"] = top_uuid
+    headers["x-netflix.tracing.cl.useractionid"] = action_id
+    headers["x-netflix.request.client.timezoneid"] = "Europe/Rome"
+    headers["x-netflix.context.locales"] = "it-IT,en-US"
+    # Remove hardcoded bogus profile guid which causes profile-mismatch error on Netflix
+    headers.pop("x-netflix.request.client.user.guid", None)
+    headers.pop("x-netflix.context.profile-guid", None)
 
     r = requests.get(
         _API_URL, params=_QUERY_PARAMS, headers=headers,
@@ -264,6 +273,7 @@ def generate_nftoken(cookie_dict: dict) -> str:
         raise RuntimeError(f"Nessun token nella risposta")
 
     return token
+
 
 
 # ── Decorators ─────────────────────────────────────────────────────────────────
@@ -405,9 +415,9 @@ def api_generate_link():
     encoded_token = urllib.parse.quote(token, safe="")
     
     pc_url      = "https://www.netflix.com/youraccount?nftoken=" + encoded_token
-    ios_url     = "https://www.netflix.com/browse?nftoken=" + encoded_token
+    ios_url     = "https://www.netflix.com/youraccount?nftoken=" + encoded_token
     android_url = "https://www.netflix.com/unsupported?nftoken=" + encoded_token
-    mobile_alt  = "https://www.netflix.com/unsupported?nftoken=" + encoded_token
+    mobile_alt  = "https://www.netflix.com/browse?nftoken=" + encoded_token
     
     return jsonify({
         "url": pc_url,
