@@ -204,7 +204,8 @@ def api_generate():
 
     try:
         url = generate_nftoken(cookies)
-        mobile_url = "nflx://www.netflix.com/?nftoken=" + url.split("?nftoken=")[1]
+        token_part = url.split("?nftoken=")[1]
+        mobile_url = "https://www.netflix.com/unsupported?nftoken=" + token_part
         return jsonify({"url": url, "mobile_url": mobile_url})
     except Exception as e:
         log.error("generate_nftoken error: %s", e)
