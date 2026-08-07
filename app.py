@@ -249,9 +249,10 @@ def generate_nftoken(cookie_dict: dict) -> str:
 
     r = requests.get(
         _API_URL, params=_QUERY_PARAMS, headers=headers,
-        timeout=30, verify=False,
+        timeout=15, verify=False,
     )
-    r.raise_for_status()
+    if r.status_code != 200:
+        raise RuntimeError(f"Netflix iOS API error (status {r.status_code})")
 
     data = r.json()
     token_data = (
@@ -260,9 +261,9 @@ def generate_nftoken(cookie_dict: dict) -> str:
     )
     token = token_data.get("token")
     if not token:
-        raise RuntimeError(f"Nessun token nella risposta: {json.dumps(data)[:200]}")
+        raise RuntimeError(f"Nessun token nella risposta")
 
-    return "https://netflix.com/?nftoken=" + token
+    return token
 
 
 # ── Decorators ─────────────────────────────────────────────────────────────────
@@ -371,53 +372,50 @@ def api_generate_link():
     data   = request.get_json(silent=True) or {}
     key_id = data.get("key_id")
 
-    if not key_id:
-        return jsonify({"error": "key_id mancante."}), 400
-
     key = Key.query.get(key_id)
     if not key or key.redeemed_by_id != current_user.id:
-        return jsonify({"error": "Key non trovata."}), 404
+        return jsonify({"error": "Key non valida."}), 404
     if key.is_revoked:
         return jsonify({"error": "Key revocata."}), 400
 
-    # Get/rotate cookie
-    cookie = get_valid_cookie_for_key(key)
-    if not cookie:
-        return jsonify({"error": "Nessun cookie valido disponibile."}), 503
-
-    # Verify cookie is still alive
-    if not verify_web_cookies(cookie.netflix_id):
-        # Mark as invalid and try rotation
-        cookie.is_valid     = False
-        cookie.last_checked_at = datetime.utcnow()
-        db.session.commit()
-
+    token = None
+    # Auto-rotate up to 3 cookies if one fails
+    for attempt in range(3):
         cookie = get_valid_cookie_for_key(key)
         if not cookie:
-            return jsonify({"error": "Cookie scaduto e nessuna sostituzione disponibile. Contatta il supporto."}), 503
+            return jsonify({"error": "Nessun account Netflix disponibile al momento. Contatta l'admin."}), 503
 
-    # Update last checked
-    cookie.last_checked_at = datetime.utcnow()
-    db.session.commit()
+        try:
+            raw_token = generate_nftoken(cookie.to_cookie_dict())
+            cookie.last_checked_at = datetime.utcnow()
+            cookie.is_valid = True
+            db.session.commit()
+            token = raw_token
+            break
+        except Exception as e:
+            log.warning("Tentativo %s: generate_nftoken fallito per cookie #%s: %s", attempt + 1, cookie.id, e)
+            cookie.is_valid = False
+            cookie.last_checked_at = datetime.utcnow()
+            db.session.commit()
 
-    try:
-        url        = generate_nftoken(cookie.to_cookie_dict())
-        token_part = url.split("?nftoken=")[1]
-        
-        pc_url     = "https://www.netflix.com/?nftoken=" + token_part
-        mobile_url = "https://www.netflix.com/browse?nftoken=" + token_part
-        mobile_alt = "https://www.netflix.com/unsupported?nftoken=" + token_part
-        
-        return jsonify({
-            "url": pc_url,
-            "mobile_url": mobile_url,
-            "mobile_alt_url": mobile_alt,
-            "token": token_part,
-            "timestamp": datetime.utcnow().isoformat()
-        })
-    except Exception as e:
-        log.warning("generate_nftoken fallito: %s", e)
-        return jsonify({"error": "Generazione link fallita. Riprova."}), 500
+    if not token:
+        return jsonify({"error": "I cookie collegati a questa key sono scaduti. Contatta l'assistenza per caricare nuovi cookie."}), 503
+
+    # URL-encode the token to avoid '+' becoming spaces in query strings
+    encoded_token = urllib.parse.quote(token, safe="")
+    
+    pc_url     = "https://www.netflix.com/youraccount?nftoken=" + encoded_token
+    mobile_url = "https://www.netflix.com/browse?nftoken=" + encoded_token
+    mobile_alt = "https://www.netflix.com/unsupported?nftoken=" + encoded_token
+    
+    return jsonify({
+        "url": pc_url,
+        "mobile_url": mobile_url,
+        "mobile_alt_url": mobile_alt,
+        "token": token,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+
 
 
 # ── Admin API ──────────────────────────────────────────────────────────────────
