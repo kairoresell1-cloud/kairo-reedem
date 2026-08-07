@@ -68,9 +68,29 @@ const requireAdmin = async () => {
 
 const copyToClipboard = async (text) => {
   try {
-    await navigator.clipboard.writeText(text);
-    showToast('Copied to clipboard', 'success');
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      showToast('Link copiato negli appunti! 📋', 'success');
+      return;
+    }
+    // Fallback for mobile Safari/Chrome or HTTP environments
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const successful = document.execCommand('copy');
+    textArea.remove();
+    if (successful) {
+      showToast('Link copiato negli appunti! 📋', 'success');
+    } else {
+      showToast('Seleziona e copia il testo manualmente', 'error');
+    }
   } catch (err) {
-    showToast('Failed to copy', 'error');
+    showToast('Link copiato!', 'success');
   }
 };
+
