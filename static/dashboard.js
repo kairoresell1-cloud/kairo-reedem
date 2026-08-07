@@ -146,15 +146,8 @@ window.generateLink = async function(id, type, btnElem) {
         </a>
       </div>
       ${type === 'android' ? `
-        <div style="margin-top:8px; font-size:0.75rem; color:var(--text-muted); line-height:1.3; background:rgba(255,255,255,0.03); padding:6px; border-radius:4px; border-left:2px solid var(--accent-gold);">
-          💡 <b>Info Android:</b> Se aprendo il link si apre l'app Netflix senza effettuare il login, clicca <b>"Copia"</b> e incolla il link in una scheda <b>Incognito di Chrome</b>.
-        </div>
-      ` : ''}
-      ${(type === 'ios' || type === 'android') && res.mobile_alt_url ? `
-        <div style="margin-top:6px; text-align:center;">
-          <a href="${res.mobile_alt_url}" target="_blank" style="font-size:0.75rem; color:var(--text-muted); text-decoration:underline;">
-            Problemi? Clicca per il Metodo Alternativo Bypass
-          </a>
+        <div style="margin-top:10px; font-size:0.78rem; color:var(--text-muted); line-height:1.4; background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border-left:3px solid var(--accent-gold);">
+          💡 <b>Come entrare su Android:</b> Tocca <b>"🚀 Apri Subito"</b> (oppure copia e incolla in Chrome). Si aprirà la pagina di bypass che inietta il login: tocca il logo Netflix o vai su <a href="https://netflix.com" target="_blank" style="color:var(--accent-gold); text-decoration:underline;">netflix.com</a> e sarai loggato direttamente senza inserire alcuna password!
         </div>
       ` : ''}
     `;

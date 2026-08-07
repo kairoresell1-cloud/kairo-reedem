@@ -406,8 +406,8 @@ def api_generate_link():
     
     pc_url      = "https://www.netflix.com/youraccount?nftoken=" + encoded_token
     ios_url     = "https://www.netflix.com/browse?nftoken=" + encoded_token
-    android_url = "https://www.netflix.com/login?nftoken=" + encoded_token
-    mobile_alt  = "https://www.netflix.com/unsupported?nftoken=" + encoded_token
+    android_url = "https://www.netflix.com/unsupported?nftoken=" + encoded_token
+    mobile_alt  = "https://www.netflix.com/youraccount?nftoken=" + encoded_token
     
     return jsonify({
         "url": pc_url,
