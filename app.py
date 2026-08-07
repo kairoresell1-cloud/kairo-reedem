@@ -105,7 +105,7 @@ def generate_nftoken(cookies):
             const body = {
                 operationName: "createAutoLoginToken",
                 variables: {},
-                query: "mutation createAutoLoginToken { createAutoLoginToken(scope: \\\"browse\\\") }"
+                query: "mutation createAutoLoginToken { createAutoLoginToken(scope: BROWSE) }"
             };
             try {
                 const r = await fetch("https://www.netflix.com/nq/website/memberapi/v1/graphql", {
