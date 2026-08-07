@@ -406,17 +406,119 @@ def api_generate_link():
     
     pc_url      = "https://www.netflix.com/youraccount?nftoken=" + encoded_token
     ios_url     = "https://www.netflix.com/browse?nftoken=" + encoded_token
-    android_url = "https://www.netflix.com/unsupported?nftoken=" + encoded_token
-    mobile_alt  = "https://www.netflix.com/youraccount?nftoken=" + encoded_token
+    android_url = "https://www.netflix.com/youraccount?nftoken=" + encoded_token
+    gateway_url = f"/open/{key.id}"
     
     return jsonify({
         "url": pc_url,
         "ios_url": ios_url,
         "android_url": android_url,
-        "mobile_alt_url": mobile_alt,
+        "gateway_url": gateway_url,
         "token": token,
         "timestamp": datetime.utcnow().isoformat()
     })
+
+
+@app.route("/open/<int:key_id>")
+@login_required
+def open_netflix_gateway(key_id):
+    device = request.args.get("device", "pc")
+    key = Key.query.get(key_id)
+    if not key or key.redeemed_by_id != current_user.id or key.is_revoked:
+        return "Key non valida o non autorizzata.", 403
+
+    token = None
+    for attempt in range(3):
+        cookie = get_valid_cookie_for_key(key)
+        if not cookie:
+            break
+        try:
+            token = generate_nftoken(cookie.to_cookie_dict())
+            cookie.last_checked_at = datetime.utcnow()
+            cookie.is_valid = True
+            db.session.commit()
+            break
+        except Exception:
+            cookie.is_valid = False
+            db.session.commit()
+
+    if not token:
+        return "Nessun account Netflix attivo disponibile al momento. Ricarica la pagina tra poco.", 503
+
+    encoded_token = urllib.parse.quote(token, safe="")
+    if device == "ios":
+        target_url = "https://www.netflix.com/browse?nftoken=" + encoded_token
+    else:
+        target_url = "https://www.netflix.com/youraccount?nftoken=" + encoded_token
+
+    return f"""<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kairo Netflix Gateway</title>
+  <style>
+    body {{
+      background: #080808;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+      text-align: center;
+    }}
+    .card {{
+      background: rgba(25, 25, 25, 0.95);
+      border: 1px solid rgba(229, 9, 20, 0.4);
+      border-radius: 16px;
+      padding: 35px 25px;
+      max-width: 400px;
+      width: 100%;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+    }}
+    .spinner {{
+      width: 45px;
+      height: 45px;
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      border-top: 4px solid #E50914;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 20px;
+    }}
+    @keyframes spin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
+    .btn {{
+      display: block;
+      background: #E50914;
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 1rem;
+      margin-top: 20px;
+    }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner"></div>
+    <h2 style="margin:0 0 10px; color:#E50914; letter-spacing:1.5px;">KAIRO REDEEM</h2>
+    <p style="color:#bbb; font-size:0.95rem; line-height:1.4;">Accesso a Netflix in corso...</p>
+    <a href="{target_url}" class="btn">Entra in Netflix</a>
+    <p style="font-size:0.75rem; color:#777; margin-top:15px;">Se non vieni reindirizzato, tocca il pulsante rosso.</p>
+  </div>
+  <script>
+    setTimeout(function() {{
+      window.location.replace("{target_url}");
+    }}, 400);
+  </script>
+</body>
+</html>"""
+
 
 
 

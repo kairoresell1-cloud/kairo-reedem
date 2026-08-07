@@ -129,6 +129,8 @@ window.generateLink = async function(id, type, btnElem) {
       return;
     }
     
+    const gatewayUrl = `/open/${id}?device=${type}`;
+    
     linkContainer.innerHTML = `
       <div style="font-size:0.75rem; color:var(--accent-gold); margin-bottom:6px; font-weight:600; display:flex; justify-content:space-between; align-items:center;">
         <span>✨ LINK FRESCO (${label})</span>
@@ -138,16 +140,16 @@ window.generateLink = async function(id, type, btnElem) {
         ${url}
       </div>
       <div style="display:flex; gap:8px;">
-        <button class="btn btn-primary" style="flex:1; padding:0.4rem; font-size:0.8rem;" onclick="copyToClipboard('${url}')">
-          📋 Copia
+        <button class="btn btn-primary" style="flex:1; padding:0.5rem; font-size:0.8rem;" onclick="copyToClipboard('${url}')">
+          📋 Copia Link
         </button>
-        <a href="${url}" target="_blank" class="btn btn-secondary" style="flex:1; padding:0.4rem; font-size:0.8rem; text-align:center; text-decoration:none; display:flex; align-items:center; justify-content:center;">
-          🚀 Apri Subito
+        <a href="${gatewayUrl}" target="_blank" class="btn btn-secondary" style="flex:1; padding:0.5rem; font-size:0.8rem; text-align:center; text-decoration:none; display:flex; align-items:center; justify-content:center;">
+          🚀 Apri Diretto
         </a>
       </div>
       ${type === 'android' ? `
         <div style="margin-top:10px; font-size:0.78rem; color:var(--text-muted); line-height:1.4; background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border-left:3px solid var(--accent-gold);">
-          💡 <b>Come entrare su Android:</b> Tocca <b>"🚀 Apri Subito"</b> (oppure copia e incolla in Chrome). Si aprirà la pagina di bypass che inietta il login: tocca il logo Netflix o vai su <a href="https://netflix.com" target="_blank" style="color:var(--accent-gold); text-decoration:underline;">netflix.com</a> e sarai loggato direttamente senza inserire alcuna password!
+          💡 <b>Info Android:</b> Premi <b>"🚀 Apri Diretto"</b> per entrare automaticamente. Se il tuo telefono ha impostazioni che forzano il Play Store, tocca <b>"Copia Link"</b> e incollalo nella barra in alto di <b>Chrome</b> (o in Incognito).
         </div>
       ` : ''}
     `;
