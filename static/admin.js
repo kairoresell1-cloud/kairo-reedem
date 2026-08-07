@@ -161,21 +161,54 @@ window.uploadCookies = async function() {
     return;
   }
   
-  showToast('Uploading and validating...', 'success');
-  const res = await api('POST', '/api/admin/upload-cookies', { cookie: content });
+  const resultDiv = document.getElementById('cookieResult');
+  resultDiv.classList.remove('hidden');
+  resultDiv.innerHTML = '<span style="color:var(--text-dim)">Parsing cookies...</span>';
   
-  if (res.error) {
-    showToast(res.error, 'error');
+  // 1. Estrae i cookie dal testo raw
+  const parseRes = await api('POST', '/api/admin/parse-cookies', { cookie: content });
+  if (parseRes.error) {
+    showToast(parseRes.error, 'error');
+    resultDiv.innerHTML = `<span style="color:var(--error)">${parseRes.error}</span>`;
     return;
   }
   
-  const resultDiv = document.getElementById('cookieResult');
-  resultDiv.classList.remove('hidden');
+  const sets = parseRes.cookie_sets || [];
+  if (sets.length === 0) {
+    resultDiv.innerHTML = '<span style="color:var(--error)">Nessun cookie valido trovato nel testo.</span>';
+    return;
+  }
+  
+  // 2. Valida i cookie uno alla volta per mostrare il progresso live
+  let added = 0, skipped = 0, invalid = 0;
+  
+  for (let i = 0; i < sets.length; i++) {
+    resultDiv.innerHTML = `
+      <div style="margin-bottom: 15px; font-size: 1.1rem; color: var(--gold);">
+        ⏳ Scansione in corso: <b>${i + 1} / ${sets.length}</b>
+      </div>
+      <div style="display:flex; gap:20px; font-weight:600; font-size: 1.1rem; background: rgba(0,0,0,0.4); padding: 10px; border-radius: 8px;">
+        <span style="color:var(--success)">✅ ${added} Aggiunti</span>
+        <span style="color:var(--blue)">⏭️ ${skipped} Duplicati</span>
+        <span style="color:var(--error)">❌ ${invalid} Morti</span>
+      </div>
+    `;
+    
+    const valRes = await api('POST', '/api/admin/validate-cookie', sets[i]);
+    if (valRes.status === 'added') added++;
+    else if (valRes.status === 'skipped') skipped++;
+    else invalid++;
+  }
+  
+  // 3. Finito
   resultDiv.innerHTML = `
-    <div style="display:flex; gap:15px; font-weight:500;">
-      <span style="color:var(--success)">✅ ${res.added || 0} Added</span>
-      <span style="color:var(--blue)">⏭️ ${res.skipped || 0} Skipped</span>
-      <span style="color:var(--error)">❌ ${res.invalid || 0} Invalid</span>
+    <div style="margin-bottom: 15px; font-size: 1.2rem; color: var(--success); font-weight: bold;">
+      ✨ Scansione Completata
+    </div>
+    <div style="display:flex; gap:20px; font-weight:600; font-size: 1.1rem; background: rgba(0,0,0,0.4); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+      <span style="color:var(--success)">✅ ${added} Aggiunti</span>
+      <span style="color:var(--blue)">⏭️ ${skipped} Duplicati</span>
+      <span style="color:var(--error)">❌ ${invalid} Morti</span>
     </div>
   `;
   document.getElementById('cookieInput').value = '';

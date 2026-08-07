@@ -467,60 +467,48 @@ def api_admin_revoke_key():
     return jsonify({"success": True})
 
 
-@app.route("/api/admin/upload-cookies", methods=["POST"])
+@app.route("/api/admin/parse-cookies", methods=["POST"])
 @admin_required
-def api_admin_upload_cookies():
+def api_admin_parse_cookies():
     data = request.get_json(silent=True) or {}
     raw  = (data.get("cookie") or "").strip()
-
-    if not raw:
-        f = request.files.get("file")
-        if f:
-            raw = f.read().decode("utf-8", errors="replace")
 
     if not raw:
         return jsonify({"error": "Nessun cookie fornito."}), 400
 
     cookie_sets = extract_all_cookie_sets(raw)
-    if not cookie_sets:
-        return jsonify({"error": "Nessun NetflixId trovato."}), 400
+    return jsonify({"cookie_sets": cookie_sets})
 
-    added   = 0
-    skipped = 0
-    invalid = 0
 
-    for cs in cookie_sets:
-        netflix_id = cs.get("NetflixId", "")
+@app.route("/api/admin/validate-cookie", methods=["POST"])
+@admin_required
+def api_admin_validate_cookie():
+    cs = request.get_json(silent=True) or {}
+    netflix_id = cs.get("NetflixId", "")
 
-        # Check for duplicate
-        if CookiePool.query.filter_by(netflix_id=netflix_id).first():
-            skipped += 1
-            continue
+    if not netflix_id:
+        return jsonify({"status": "invalid"})
 
-        # Verify the cookie is actually valid
-        if not verify_web_cookies(netflix_id):
-            invalid += 1
-            continue
+    # Check for duplicate
+    if CookiePool.query.filter_by(netflix_id=netflix_id).first():
+        return jsonify({"status": "skipped"})
 
-        entry = CookiePool(
-            netflix_id        = netflix_id,
-            secure_netflix_id = cs.get("SecureNetflixId"),
-            nfvdid            = cs.get("nfvdid"),
-            optanon_consent   = cs.get("OptanonConsent"),
-            is_valid          = True,
-            last_checked_at   = datetime.utcnow(),
-        )
-        db.session.add(entry)
-        added += 1
+    # Verify the cookie is actually valid
+    if not verify_web_cookies(netflix_id):
+        return jsonify({"status": "invalid"})
 
+    entry = CookiePool(
+        netflix_id        = netflix_id,
+        secure_netflix_id = cs.get("SecureNetflixId"),
+        nfvdid            = cs.get("nfvdid"),
+        optanon_consent   = cs.get("OptanonConsent"),
+        is_valid          = True,
+        last_checked_at   = datetime.utcnow(),
+    )
+    db.session.add(entry)
     db.session.commit()
 
-    return jsonify({
-        "added":   added,
-        "skipped": skipped,
-        "invalid": invalid,
-        "total":   len(cookie_sets),
-    })
+    return jsonify({"status": "added"})
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
