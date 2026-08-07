@@ -236,17 +236,19 @@ _VERIFY_HEADERS = {
 }
 
 
+# Unici path che indicano sessione autenticata
+_LOGGED_IN_PATHS = ("/browse", "/selectprofile", "/profiles", "/kids", "/home", "/latest")
+
+
 def verify_web_cookies(netflix_id: str) -> bool:
     """
-    Verifica che il cookie NetflixId sia ancora valido per il login WEB.
+    Verifica cookie NetflixId per login web — approccio WHITELIST.
 
-    Strategia: visita /browse direttamente (pagina protetta).
-    - Cookie valido  → Netflix risponde 200 su /browse
-    - Cookie scaduto → Netflix fa 302 server-side verso /login
-    Nessun JavaScript coinvolto — redirect puro HTTP.
+    Cookie valido  → Netflix rimanda su /browse, /selectProfile, /kids ecc.
+    Cookie scaduto → Netflix rimanda su /login, /it-en/, /it/, homepage locale...
 
-    Facciamo questo PRIMA di generare il token così non consumiamo
-    il token durante la verifica (i nftoken hanno vita molto corta).
+    Non usiamo blacklist (troppi URL di fallback diversi per paese).
+    Usiamo whitelist: SOLO i path noti di sessione attiva sono accettati.
     """
     try:
         r = requests.get(
@@ -255,18 +257,26 @@ def verify_web_cookies(netflix_id: str) -> bool:
             headers=_VERIFY_HEADERS,
             timeout=15,
             verify=False,
-            allow_redirects=True,
+            allow_redirects=False,
         )
-        final = r.url.lower()
-        # Cookie scaduto → redirect a login/signup
-        if "/login" in final or "/signup" in final or "/register" in final:
-            return False
-        # Siamo rimasti su browse o profili → cookie valido
-        return True
+
+        # 200 diretto su /browse → loggato
+        if r.status_code == 200:
+            return True
+
+        # Redirect → leggo il Location header
+        if r.status_code in (301, 302, 303, 307, 308):
+            location = r.headers.get("Location", "").lower()
+            # WHITELIST: accetto solo path noti di sessione attiva
+            # Qualsiasi altra cosa (homepage locale /it-en/, /login, ecc) → morto
+            return any(location.startswith(p) or p in location for p in _LOGGED_IN_PATHS)
+
+        # Qualsiasi altro status → morto
+        return False
+
     except Exception as exc:
         log.warning("verify_web_cookies fallita: %s", exc)
-        # In caso di errore di rete assumiamo valido per non scartare troppo
-        return True
+        return True  # errore di rete → non scartare
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
