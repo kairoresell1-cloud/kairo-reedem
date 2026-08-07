@@ -405,7 +405,7 @@ def api_generate_link():
     encoded_token = urllib.parse.quote(token, safe="")
     
     pc_url     = "https://www.netflix.com/youraccount?nftoken=" + encoded_token
-    mobile_url = "https://www.netflix.com/browse?nftoken=" + encoded_token
+    mobile_url = "https://www.netflix.com/unsupported?nftoken=" + encoded_token
     
     return jsonify({
         "url": pc_url,
