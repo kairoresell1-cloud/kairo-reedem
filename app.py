@@ -235,61 +235,41 @@ _VERIFY_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 }
 
-# Pagine valide dopo login riuscito
-_VALID_PATHS   = ("/browse", "/home", "/selectprofile", "/profiles", "/kids")
-# Pagine che indicano login fallito
-_INVALID_PATHS = ("/login", "/signup", "/register")
 
-def verify_nftoken(token_url: str) -> bool:
+def verify_web_cookies(netflix_id: str) -> bool:
     """
-    Verifica che il token effettivamente logga l'utente.
+    Verifica che il cookie NetflixId sia ancora valido per il login WEB.
 
-    Strategia (in ordine di affidabilità):
-    1. Se la risposta contiene un cookie NetflixId fresco → login OK
-       (Netflix lo setta solo quando il token è valido)
-    2. Se l'URL finale è su una pagina di login/signup → morto
-    3. Se l'URL finale è su browse/selectProfile/ecc → valido
-    4. Se siamo ancora sull'URL nftoken (non rediretto) → morto
+    Strategia: visita /browse direttamente (pagina protetta).
+    - Cookie valido  → Netflix risponde 200 su /browse
+    - Cookie scaduto → Netflix fa 302 server-side verso /login
+    Nessun JavaScript coinvolto — redirect puro HTTP.
+
+    Facciamo questo PRIMA di generare il token così non consumiamo
+    il token durante la verifica (i nftoken hanno vita molto corta).
     """
     try:
-        session = requests.Session()
-        r = session.get(
-            token_url,
+        r = requests.get(
+            "https://www.netflix.com/browse",
+            cookies={"NetflixId": netflix_id},
             headers=_VERIFY_HEADERS,
-            timeout=20,
+            timeout=15,
             verify=False,
             allow_redirects=True,
         )
         final = r.url.lower()
-
-        # ── Controllo 1: cookie di risposta (più affidabile) ──
-        # Netflix setta NetflixId SOLO quando il token è legittimo
-        all_cookies = {**session.cookies.get_dict(), **r.cookies.get_dict()}
-        if "netflixid" in {k.lower() for k in all_cookies}:
-            return True
-
-        # ── Controllo 2: URL finale → pagina di login ─────────
-        if any(p in final for p in _INVALID_PATHS):
+        # Cookie scaduto → redirect a login/signup
+        if "/login" in final or "/signup" in final or "/register" in final:
             return False
-
-        # ── Controllo 3: URL finale → pagina loggata ──────────
-        if any(p in final for p in _VALID_PATHS):
-            return True
-
-        # ── Controllo 4: siamo rimasti sull'URL nftoken ───────
-        if "nftoken=" in final:
-            return False
-
-        # Non siamo su login, non siamo su browse → assume morto
-        log.warning("verify_nftoken: URL finale ambiguo: %s", final)
-        return False
-
+        # Siamo rimasti su browse o profili → cookie valido
+        return True
     except Exception as exc:
-        log.warning("Verifica token fallita: %s", exc)
-        return False
+        log.warning("verify_web_cookies fallita: %s", exc)
+        # In caso di errore di rete assumiamo valido per non scartare troppo
+        return True
 
 
-# ── Routes ────────────────────────────────────────────────────────────────────
+# ── Routes ───────────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
@@ -321,17 +301,20 @@ def api_generate():
 
     accounts = []
     for cookies in cookie_sets:
+        netflix_id = cookies.get("NetflixId", "")
         try:
-            url = generate_nftoken(cookies)
-            token_part = url.split("?nftoken=")[1]
-
-            # Verifica che il token funzioni — scarta i cookie scaduti
-            if not verify_nftoken(url):
-                log.info("Token generato ma login fallito (cookie scaduti?), scartato.")
+            # Step 1: verifica cookie web PRIMA di generare il token
+            # così non consumiamo un token su cookie già scaduti
+            if not verify_web_cookies(netflix_id):
+                log.info("Cookie web scaduti per NetflixId ...%s, scartato.", netflix_id[-6:])
                 continue
 
+            # Step 2: genera il token (solo se i cookie sono validi)
+            url = generate_nftoken(cookies)
+            token_part = url.split("?nftoken=")[1]
             mobile_url = "https://www.netflix.com/unsupported?nftoken=" + token_part
             accounts.append({"url": url, "mobile_url": mobile_url})
+
         except Exception as e:
             log.warning("Cookie set failed: %s", e)
             continue
