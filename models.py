@@ -118,9 +118,14 @@ def get_valid_cookie_for_key(key: Key) -> CookiePool | None:
     if key.cookie and key.cookie.is_valid:
         return key.cookie
 
-    # Current cookie is dead — pick an unused valid one from the pool
+    old_cookie = key.cookie
+    if old_cookie:
+        old_cookie.is_valid = False
+
+    # 1. Try to find a valid cookie that isn't assigned to another active key
     used_ids = db.session.query(Key.cookie_id).filter(
         Key.cookie_id.isnot(None),
+        Key.id != key.id,
         Key.is_revoked == False,
     ).subquery()
 
@@ -129,11 +134,21 @@ def get_valid_cookie_for_key(key: Key) -> CookiePool | None:
         ~CookiePool.id.in_(used_ids),
     ).first()
 
+    # 2. If none unused, fallback to any valid cookie in the pool
+    if not fresh:
+        fresh = CookiePool.query.filter(CookiePool.is_valid == True).first()
+
+    # 3. Auto-recovery: If all cookies in pool were marked invalid by previous bug, resurrect to re-test
+    if not fresh:
+        fresh = CookiePool.query.first()
+        if fresh:
+            fresh.is_valid = True
+
     if fresh:
         key.cookie_id = fresh.id
-        if key.cookie:
-            key.cookie.is_valid = False  # mark old one as dead
+        fresh.is_valid = True
         db.session.commit()
         return fresh
 
     return None
+
