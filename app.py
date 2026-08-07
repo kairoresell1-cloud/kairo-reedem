@@ -234,7 +234,18 @@ def generate_nftoken(cookie_dict: dict) -> str:
         raise RuntimeError("NetflixId mancante.")
 
     headers = dict(_IOS_HEADERS)
-    headers["Cookie"] = f"NetflixId={netflix_id}"
+    # Include all available cookies
+    cookies_list = [f"NetflixId={netflix_id}"]
+    if cookie_dict.get("SecureNetflixId"):
+        cookies_list.append(f"SecureNetflixId={cookie_dict['SecureNetflixId']}")
+    if cookie_dict.get("nfvdid"):
+        cookies_list.append(f"nfvdid={cookie_dict['nfvdid']}")
+    if cookie_dict.get("OptanonConsent"):
+        cookies_list.append(f"OptanonConsent={cookie_dict['OptanonConsent']}")
+        
+    headers["Cookie"] = "; ".join(cookies_list)
+    import uuid
+    headers["x-netflix.request.toplevel.uuid"] = str(uuid.uuid4()).upper()
 
     r = requests.get(
         _API_URL, params=_QUERY_PARAMS, headers=headers,
@@ -392,8 +403,18 @@ def api_generate_link():
     try:
         url        = generate_nftoken(cookie.to_cookie_dict())
         token_part = url.split("?nftoken=")[1]
-        mobile_url = "https://www.netflix.com/unsupported?nftoken=" + token_part
-        return jsonify({"url": url, "mobile_url": mobile_url})
+        
+        pc_url     = "https://www.netflix.com/?nftoken=" + token_part
+        mobile_url = "https://www.netflix.com/browse?nftoken=" + token_part
+        mobile_alt = "https://www.netflix.com/unsupported?nftoken=" + token_part
+        
+        return jsonify({
+            "url": pc_url,
+            "mobile_url": mobile_url,
+            "mobile_alt_url": mobile_alt,
+            "token": token_part,
+            "timestamp": datetime.utcnow().isoformat()
+        })
     except Exception as e:
         log.warning("generate_nftoken fallito: %s", e)
         return jsonify({"error": "Generazione link fallita. Riprova."}), 500

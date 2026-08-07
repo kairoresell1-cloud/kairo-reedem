@@ -53,17 +53,15 @@ async function loadKeys() {
         </p>
         
         <div style="display:flex; gap:10px; margin-bottom:1rem; transform: translateZ(50px);">
-          <button class="btn btn-primary" style="flex:1; padding:0.6rem; font-size:0.9rem;" onclick="generateLink(${k.id}, 'pc')">
+          <button class="btn btn-primary" style="flex:1; padding:0.6rem; font-size:0.9rem;" onclick="generateLink(${k.id}, 'pc', this)">
             🖥️ PC Link
           </button>
-          <button class="btn btn-secondary" style="flex:1; padding:0.6rem; font-size:0.9rem;" onclick="generateLink(${k.id}, 'mobile')">
+          <button class="btn btn-secondary" style="flex:1; padding:0.6rem; font-size:0.9rem;" onclick="generateLink(${k.id}, 'mobile', this)">
             📱 Mobile
           </button>
         </div>
         
-        <div id="link-container-${k.id}" class="hidden" style="background:rgba(0,0,0,0.6); padding:1rem; border-radius:8px; border:1px solid rgba(229,9,20,0.2); word-break:break-all; font-size:0.85rem; position:relative; transform: translateZ(40px);">
-          <span id="link-text-${k.id}" style="color:var(--text-color); display:block; padding-right:50px;"></span>
-          <button onclick="copyLink(${k.id})" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:var(--accent-red); border:none; color:white; border-radius:6px; cursor:pointer; padding:6px 12px; font-weight:600; font-size:0.8rem;">COPY</button>
+        <div id="link-container-${k.id}" class="hidden" style="background:rgba(0,0,0,0.6); padding:1rem; border-radius:8px; border:1px solid rgba(229,9,20,0.3); font-size:0.85rem; position:relative; transform: translateZ(40px);">
         </div>
       </div>
     </div>
@@ -96,28 +94,63 @@ window.toggleKey = function(id, fullKey) {
   }
 }
 
-window.generateLink = async function(id, type) {
-  const res = await api('POST', '/api/generate-link', { key_id: id });
-  if (res.error) {
-    showToast(res.error, 'error');
-    return;
+window.generateLink = async function(id, type, btnElem) {
+  const originalHtml = btnElem ? btnElem.innerHTML : '';
+  if (btnElem) {
+    btnElem.disabled = true;
+    btnElem.innerHTML = '⏳ Generando...';
   }
   
   const linkContainer = document.getElementById(`link-container-${id}`);
-  const linkText = document.getElementById(`link-text-${id}`);
-  const url = type === 'mobile' ? res.mobile_url : res.url;
+  linkContainer.classList.add('hidden');
   
-  if(!url) {
-    showToast('Failed to generate link', 'error');
-    return;
+  try {
+    const res = await api('POST', '/api/generate-link', { key_id: id });
+    if (res.error) {
+      showToast(res.error, 'error');
+      return;
+    }
+    
+    const url = type === 'mobile' ? res.mobile_url : res.url;
+    if (!url) {
+      showToast('Errore generazione link', 'error');
+      return;
+    }
+    
+    linkContainer.innerHTML = `
+      <div style="font-size:0.75rem; color:var(--accent-gold); margin-bottom:6px; font-weight:600; display:flex; justify-content:space-between; align-items:center;">
+        <span>✨ LINK FRESCO (${type === 'mobile' ? '📱 MOBILE' : '🖥️ PC'})</span>
+        <span style="color:var(--text-muted); font-size:0.7rem;">Live Token</span>
+      </div>
+      <div style="background:rgba(0,0,0,0.5); padding:8px; border-radius:6px; font-family:monospace; font-size:0.8rem; word-break:break-all; margin-bottom:10px; border:1px solid rgba(255,255,255,0.05); color:#fff;">
+        ${url}
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-primary" style="flex:1; padding:0.4rem; font-size:0.8rem;" onclick="copyToClipboard('${url}')">
+          📋 Copia
+        </button>
+        <a href="${url}" target="_blank" class="btn btn-secondary" style="flex:1; padding:0.4rem; font-size:0.8rem; text-align:center; text-decoration:none; display:flex; align-items:center; justify-content:center;">
+          🚀 Apri Subito
+        </a>
+      </div>
+      ${type === 'mobile' && res.mobile_alt_url ? `
+        <div style="margin-top:8px; text-align:center;">
+          <a href="${res.mobile_alt_url}" target="_blank" style="font-size:0.75rem; color:var(--text-muted); text-decoration:underline;">
+            Problemi ad aprire? Clicca qui (Metodo Alternativo)
+          </a>
+        </div>
+      ` : ''}
+    `;
+    linkContainer.classList.remove('hidden');
+    showToast('Nuovo token generato con successo!', 'success');
+  } catch (err) {
+    console.error(err);
+    showToast('Errore di connessione', 'error');
+  } finally {
+    if (btnElem) {
+      btnElem.disabled = false;
+      btnElem.innerHTML = originalHtml;
+    }
   }
-  
-  linkText.textContent = url;
-  linkText.dataset.url = url;
-  linkContainer.classList.remove('hidden');
 }
 
-window.copyLink = function(id) {
-  const url = document.getElementById(`link-text-${id}`).dataset.url;
-  copyToClipboard(url);
-}
